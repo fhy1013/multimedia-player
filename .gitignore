@@ -1,0 +1,69 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+*.ilk
+# *.pdb
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+# *.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+# *.a
+# *.lib
+
+# Executables
+# *.exe
+*.out
+*.app
+
+# QT pro file
+*.pro.user*
+
+# backup file
+*.bak
+
+# log file
+*.log
+
+# build
+build
+
+# bin
+# bin
+
+# lib
+# lib
+
+# .vs
+.vs
+
+# external_dependencies/ffmpeg
+external_dependencies/ffmpeg
+
+# resource
+resource
+
+# version_info.rc
+version_info.rc
+
+Release
+
+Debug
+
