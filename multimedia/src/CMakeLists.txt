@@ -16,6 +16,7 @@ include_directories(
 link_directories(
 	${CMAKE_SOURCE_DIR}/external_dependencies/glog/lib
 	${CMAKE_SOURCE_DIR}/external_dependencies/ffmpeg/lib
+	${CMAKE_SOURCE_DIR}/external_dependencies/sdl/lib
 )
 
 
@@ -36,3 +37,5 @@ target_link_libraries(${PROJECT_NAME} avformat)
 target_link_libraries(${PROJECT_NAME} swresample)
 
 target_link_libraries(${PROJECT_NAME} glog)
+
+target_link_libraries(${PROJECT_NAME} SDL2)

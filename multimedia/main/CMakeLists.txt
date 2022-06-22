@@ -12,8 +12,10 @@ include_directories(
 
 # add link directory
 link_directories(
+	${CMAKE_SOURCE_DIR}/lib
 	${CMAKE_SOURCE_DIR}/external_dependencies/glog/lib
 	${CMAKE_SOURCE_DIR}/external_dependencies/ffmpeg/lib
+	${CMAKE_SOURCE_DIR}/external_dependencies/sdl/lib
 )
 
 

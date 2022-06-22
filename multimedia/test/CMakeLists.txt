@@ -4,6 +4,9 @@ project ("multimedia_test" VERSION ${PROJECT_VERSION})
 
 include_directories(
 	${CMAKE_SOURCE_DIR}/inc
+	${CMAKE_SOURCE_DIR}/external_dependencies/glog/include
+	${CMAKE_SOURCE_DIR}/external_dependencies/ffmpeg/include
+	${CMAKE_SOURCE_DIR}/external_dependencies/sdl/include
 	${CMAKE_SOURCE_DIR}/external_dependencies/googletest/include
 	${CMAKE_CURRENT_SOURCE_DIR}/../include
 )
@@ -12,6 +15,7 @@ link_directories(
 	${CMAKE_SOURCE_DIR}/lib
 	${CMAKE_SOURCE_DIR}/external_dependencies/glog/lib
 	${CMAKE_SOURCE_DIR}/external_dependencies/ffmpeg/lib
+	${CMAKE_SOURCE_DIR}/external_dependencies/sdl/lib
 	${GOOGLE_TEST_LIB_PATH}
 )
 

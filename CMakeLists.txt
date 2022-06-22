@@ -39,7 +39,7 @@ add_compile_options(-Wall)
 
 
 # 预编译宏
-# add_definitions(-DTEST)
+add_definitions(-DFRAME_QUEUE)
 
 
 if(${CMAKE_BUILD_TYPE} MATCHES "Debug")
@@ -82,8 +82,10 @@ enable_testing()
 set(PROJECT_VERSION 1.0.0.0)
 project("multimedia_player" VERSION ${PROJECT_VERSION})
 
+
 # include subdirectory
 add_subdirectory("multimedia")
+
 
 #=============Copy Source files to Build Runtime Dir=============== 
 #该内容一般放在项目顶层CMakelists.txt的最后，
