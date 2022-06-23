@@ -11,6 +11,8 @@ bool CoreDecoderVideo::init(AVFormatContext *format_context, int stream_index, V
     if (!ret) return ret;
 
     cb(codec_context_->width, codec_context_->height);
+    tb_ = stream_->time_base;
+    frame_rate_ = av_guess_frame_rate(formatContext(), stream_, NULL);
     return ret;
 }
 
@@ -45,7 +47,13 @@ bool CoreDecoderVideo::decode(AVPacket *pack, DecodeCallback cb) {
         //                     "R component if the video format is RGB";
         // } else
         //     saveFramAsYUV(frame_);
+
+        double duration = (frame_rate_.num && frame_rate_.den ? av_q2d({frame_rate_.den, frame_rate_.num}) : 0);
+        double pts = (frame_->pts == AV_NOPTS_VALUE) ? NAN : frame_->pts * av_q2d(tb_);
+        pushFrame(frame_, pts, duration, frame_->pkt_pos);
+
         cb(frame_->pts);
+        av_frame_unref(frame_);
     }
 }
 
@@ -61,7 +69,6 @@ bool CoreDecoderVideo::decode(AVPacket *pack, DecodeCallback cb) {
 //         LOG(ERROR) << "malloc failed";
 //         return;
 //     }
-
 //     // //把解码出来的数据存成YUV数据，方便验证解码是否正确
 //     for (auto i = 0; i < height; i++) {
 //         auto index = width * i;
@@ -74,8 +81,29 @@ bool CoreDecoderVideo::decode(AVPacket *pack, DecodeCallback cb) {
 //                    width / 2);
 //         }
 //     }
-
 //     out_.write(reinterpret_cast<char *>(yuv_buf), len);
-
 //     delete[] yuv_buf;
 // }
+
+bool CoreDecoderVideo::pushFrame(AVFrame *frame, double pts, double duration, int64_t pos) {
+    Frame *vp;
+    if (!(vp = frame_queue_->peekWritable())) return false;
+
+    vp->sar = frame->sample_aspect_ratio;
+    vp->uploaded = 0;
+
+    vp->width = frame->width;
+    vp->height = frame->height;
+    vp->format = frame->format;
+
+    vp->pts = pts;
+    vp->duration = duration;
+    vp->pos = pos;
+    // vp->serial = serial;
+    // set_default_window_size(vp->width, vp->height, vp->sar);
+
+    av_frame_move_ref(vp->frame, frame);
+    frame_queue_->framePush();
+
+    return 0;
+}

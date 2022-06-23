@@ -38,9 +38,9 @@ void CoreThreadDemux::demux() {
         }
 
         if (packet->stream_index == core_media_->video_stream_index_) {
-            // ret = video_packets->push(packet);
-            av_packet_unref(packet);
-            // if (ret) LOG(INFO) << "read video count " << ++vcount;
+            ret = video_packets->push(packet);
+            // av_packet_unref(packet);
+            // if (ret) LOG(INFO) << "read video " << ++vcount;
         } else if (packet->stream_index == core_media_->audio_stream_index_) {
             ret = audio_packets->push(packet);
             // av_packet_unref(packet);

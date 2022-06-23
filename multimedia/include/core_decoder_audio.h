@@ -1,9 +1,9 @@
 #pragma once
 
 #include "core_decoder.h"
-#include "swr_context_proxy.h"
+#include "swresample_proxy.h"
 
-typedef std::function<bool(SwrContextParam in)> AudioCallback;
+typedef std::function<bool(AudioParams in)> AudioCallback;
 
 class CoreDecoderAudio : public CoreDecoder {
 public:

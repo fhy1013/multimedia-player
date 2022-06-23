@@ -9,6 +9,7 @@ extern "C" {
 #include "libavutil/time.h"
 #include "libavutil/error.h"
 #include "libswresample/swresample.h"
+#include "libswscale/swscale.h"
 
 #include <SDL2/SDL.h>
 

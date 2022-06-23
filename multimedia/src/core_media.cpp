@@ -61,10 +61,10 @@ bool CoreMedia::init() {
                            std::placeholders::_3);
 
     status_ = STOP;
-
     sdl_proxy_ = SDL2Proxy::instance();
 
     audio_frame_queue_ = std::make_shared<FrameQueue>();
+    video_frame_queue_ = std::make_shared<FrameQueue>();
 
     return true;
 }
@@ -186,7 +186,7 @@ void CoreMedia::loop() {
         SDL_PollEvent(&event_);
         switch (event_.type) {
             case FF_REFRESH_EVENT:
-                // video_refresh_timer(event.user.data1);
+                // sdl_proxy_->refreshVideo(0, event_.user.data1);
                 break;
             // case FF_QUIT_EVENT:
             case SDL_QUIT:
@@ -207,7 +207,11 @@ bool CoreMedia::initVideo() {
     if (video_stream_index_ >= 0)
         return video_->init(
             format_context_, video_stream_index_,
-            [this](int width, int height) { sdl_proxy_->initVideo(width, height); }, video_frame_queue_);
+            [this](int width, int height) {
+                sdl_proxy_->initVideo(width, height, video_frame_queue_);
+                sdl_proxy_->scheduleRefreshVideo(1);
+            },
+            video_frame_queue_);
     return true;
 }
 
@@ -215,9 +219,9 @@ bool CoreMedia::initAudio() {
     if (audio_stream_index_ >= 0)
         return audio_->init(
             format_context_, audio_stream_index_,
-            [this](SwrContextParam in) {
-                SwrContextParam out{in.channel, AV_SAMPLE_FMT_S16, 48000};
-                if (!SwrContextProxy::instance()->init(in, out)) return false;
+            [this](AudioParams in) {
+                AudioParams out{in.channel, AV_SAMPLE_FMT_S16, 48000};
+                if (!SwresampleProxy::instance()->init(in, out)) return false;
 
                 SDL_AudioSpec spec = {0};
                 spec.freq = out.sample_rate;

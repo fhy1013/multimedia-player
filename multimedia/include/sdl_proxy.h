@@ -46,22 +46,30 @@ private:
     int64_t audio_callback_time_;
 };
 
+typedef std::function<void(int millisecond)> VideoRefreshCallbacks;
 class SDL2Video {
 public:
     static SDL2Video *instance();
-
-    bool init(int width, int height);
-
-    void refresh();
 
 private:
     SDL2Video();
     ~SDL2Video();
 
+public:
+    bool init(int width, int height, std::shared_ptr<FrameQueue> &video_frame_queue);
+    bool refresh(VideoRefreshCallbacks cb);
+    void uninit();
+
+private:
+    bool getFrame(Frame **frame);
+
 private:
     SDL_Window *window_;
     SDL_Renderer *render_;
     SDL_Texture *texture_;
+    SDL_Rect rect_;
+
+    std::shared_ptr<FrameQueue> video_frame_queue_;
 };
 
 class SDL2Event {
@@ -75,12 +83,17 @@ public:
     static SDL2Proxy *instance();
 
     bool initAudio(SDL_AudioSpec *spec, std::shared_ptr<FrameQueue> &audio_frame_queue);
-    bool initVideo(int width, int height);
+    bool initVideo(int width, int height, std::shared_ptr<FrameQueue> &video_frame_queue);
 
     static void refreshAudio(void *udata, Uint8 *stream, int len);
-    static void refreshVideo();
+    static Uint32 refreshVideo(Uint32 interval, void *opaque);
+
+    static void scheduleRefreshVideo(int millisecond_time);
 
 private:
     SDL2Proxy();
     ~SDL2Proxy();
+
+    // private:
+    //     SDL2Video sdl_video_;
 };

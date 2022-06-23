@@ -14,7 +14,7 @@ bool CoreDecoderAudio::init(AVFormatContext* format_context, int stream_index, A
               << codec_context_->sample_fmt << ", sample_rate " << codec_context_->sample_rate << ", frame_size "
               << codec_context_->frame_size;
 
-    SwrContextParam in{codec_context_->channels, codec_context_->sample_fmt, codec_context_->sample_rate};
+    AudioParams in{codec_context_->channels, codec_context_->sample_fmt, codec_context_->sample_rate};
 
     return cb(in);
 }

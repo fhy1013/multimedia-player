@@ -36,6 +36,8 @@ target_link_libraries(${PROJECT_NAME} avformat)
 
 target_link_libraries(${PROJECT_NAME} swresample)
 
+target_link_libraries(${PROJECT_NAME} swscale)
+
 target_link_libraries(${PROJECT_NAME} glog)
 
 target_link_libraries(${PROJECT_NAME} SDL2)

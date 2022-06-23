@@ -19,4 +19,9 @@ public:
 
 private:
     // void saveFramAsYUV(AVFrame* pFrame);
+    bool pushFrame(AVFrame* frame, double pts, double duration, int64_t pos);
+
+private:
+    AVRational tb_;
+    AVRational frame_rate_;
 };

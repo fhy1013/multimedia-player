@@ -1,7 +1,7 @@
 #include "sdl_proxy.h"
 #include "glog_proxy.h"
 #include "core_media.h"
-#include "swr_context_proxy.h"
+#include "swresample_proxy.h"
 #include "audio_frame_buffer.h"
 
 #include <fstream>
@@ -82,18 +82,18 @@ int SDL2Audio::getPcmFromAudioFrameQueue() {
     if (!af) return -1;
     audio_frame_queue_->frameNext();
 
-    auto swr_context_proxy = SwrContextProxy::instance();
-    auto nb_samples = swr_context_proxy->avRescaleRnd(af->frame);
-    auto sambuf_size = swr_context_proxy->avSamplesGetBufferSize(nb_samples);
+    auto swresample_proxy = SwresampleProxy::instance();
+    auto nb_samples = swresample_proxy->avRescaleRnd(af->frame);
+    auto sambuf_size = swresample_proxy->avSamplesGetBufferSize(nb_samples);
 
-    auto out_swr_context = swr_context_proxy->outSwrContextParam();
+    auto out_swr_context = swresample_proxy->outSwrContextParam();
 
     // new convert buffer
     std::shared_ptr<AudioFrameBuffer> audio_buf =
         std::make_shared<AudioFrameBuffer>(out_swr_context.channel, sambuf_size, out_swr_context.format);
 
-    auto nb_convert = swr_context_proxy->swrConvert(audio_buf.get()->getBuffer(), nb_samples,
-                                                    (const uint8_t **)af->frame->data, af->frame->nb_samples);
+    auto nb_convert = swresample_proxy->resample(audio_buf.get()->getBuffer(), nb_samples,
+                                                 (const uint8_t **)af->frame->data, af->frame->nb_samples);
     if (nb_convert < 0) {
         LOG(ERROR) << "swr_convert fialed";
         return -1;
@@ -101,14 +101,14 @@ int SDL2Audio::getPcmFromAudioFrameQueue() {
     // auto nb_convert = 0;
     // while (nb_convert > 0) {
     //     nb_convert += nb_convert;
-    //     auto buffer_size = swr_context_proxy->avSamplesGetBufferSize(nb_convert);
-    //     nb_convert = swr_context_proxy->swrConvert(&audio_buf_, nb_samples, nullptr, 0);
+    //     auto buffer_size = swresample_proxy->avSamplesGetBufferSize(nb_convert);
+    //     nb_convert = swresample_proxy->resample(&audio_buf_, nb_samples, nullptr, 0);
     //     if (nb_convert < 0) {
     //         LOG(ERROR) << "swr_convert fialed";
     //         return -1;
     //     }
     // }
-    auto convert_buffer_size = swr_context_proxy->avSamplesGetBufferSize(nb_convert);
+    auto convert_buffer_size = swresample_proxy->avSamplesGetBufferSize(nb_convert);
     audio_buf_ = new uint8_t[convert_buffer_size];
     memset(audio_buf_, 0x00, convert_buffer_size);
     if (av_sample_fmt_is_planar(out_swr_context.format))
@@ -130,11 +130,8 @@ int SDL2Audio::getPcmFromAudioFrameQueue() {
 //     }
 //     static uint64_t index = 0;
 //     static bool end = false;
-
 //     if (end) return -1;
-
 //     in.seekg(index);
-
 //     auto len = 1024;
 //     audio_buf_ = new uint8_t[len];
 //     memset(audio_buf_, 0x00, len);
@@ -147,10 +144,10 @@ int SDL2Audio::getPcmFromAudioFrameQueue() {
 //     auto read_size = in.gcount();
 //     index = in.tellg();
 //     in.close();
-
 //     return read_size;
 // }
 
+// Planar: L L L L R R R R
 void SDL2Audio::copyPlanar(uint8_t *des, uint8_t **src, AVSampleFormat format, int64_t nb_samples, int channels) {
     auto per_sample_size = av_get_bytes_per_sample(format);
     size_t offset = 0;
@@ -162,6 +159,7 @@ void SDL2Audio::copyPlanar(uint8_t *des, uint8_t **src, AVSampleFormat format, i
         }
 }
 
+// Packed: L R L R L R L R
 void SDL2Audio::copyPacked(uint8_t *des, uint8_t **src, AVSampleFormat format, int64_t nb_samples, int channels) {
     auto per_sample_size = av_get_bytes_per_sample(format);
     memcpy(des, reinterpret_cast<char *>(src[0]), per_sample_size * nb_samples * channels);
@@ -172,25 +170,20 @@ void SDL2Audio::copyPacked(uint8_t *des, uint8_t **src, AVSampleFormat format, i
 //     out.write(reinterpret_cast<char *>(data), len);
 // }
 
-SDL2Video::SDL2Video() : window_(nullptr), render_(nullptr), texture_(nullptr) {}
+SDL2Video::SDL2Video() : window_(nullptr), render_(nullptr), texture_(nullptr), rect_({0, 0, 0, 0}) {}
 
-SDL2Video::~SDL2Video() {
-    if (texture_) SDL_DestroyTexture(texture_);
-
-    if (render_) SDL_DestroyRenderer(render_);
-
-    if (window_) SDL_DestroyWindow(window_);
-}
+SDL2Video::~SDL2Video() { uninit(); }
 
 SDL2Video *SDL2Video::instance() {
     static SDL2Video self;
     return &self;
 }
 
-bool SDL2Video::init(int width, int height) {
+bool SDL2Video::init(int width, int height, std::shared_ptr<FrameQueue> &video_frame_queue) {
+    video_frame_queue_ = video_frame_queue;
+
     window_ = SDL_CreateWindow("Multimedia-Player", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height,
                                SDL_WINDOW_SHOWN);
-
     if (!window_) {
         LOG(ERROR) << "failed to create window by sdl";
         return false;
@@ -200,17 +193,57 @@ bool SDL2Video::init(int width, int height) {
         LOG(ERROR) << "failed to create render";
         return false;
     }
-
     texture_ = SDL_CreateTexture(render_, SDL_PIXELFORMAT_IYUV, SDL_TEXTUREACCESS_STREAMING, width, height);
     if (!texture_) {
         LOG(ERROR) << "failed to create texture";
         return false;
     }
-
     return true;
 }
 
-void SDL2Video::refresh() {}
+bool SDL2Video::refresh(VideoRefreshCallbacks cb) {
+    Frame *af = nullptr;
+    if (getFrame(&af)) {
+        cb(af->duration);
+
+        SDL_UpdateYUVTexture(texture_, nullptr, af->frame->data[0], af->frame->linesize[0], af->frame->data[1],
+                             af->frame->linesize[1], af->frame->data[2], af->frame->linesize[2]);
+        rect_.x = 0;
+        rect_.y = 0;
+        rect_.w = af->width;
+        rect_.h = af->height;
+
+        SDL_RenderClear(render_);
+        SDL_RenderCopy(render_, texture_, nullptr, &rect_);
+        SDL_RenderPresent(render_);
+    } else {
+        cb(1);
+        return false;
+    }
+    return true;
+}
+
+void SDL2Video::uninit() {
+    if (texture_) {
+        SDL_DestroyTexture(texture_);
+        texture_ = nullptr;
+    }
+    if (render_) {
+        SDL_DestroyRenderer(render_);
+        render_ = nullptr;
+    }
+    if (window_) {
+        SDL_DestroyWindow(window_);
+        window_ = nullptr;
+    }
+}
+bool SDL2Video::getFrame(Frame **frame) {
+    if (video_frame_queue_->frameRemaining() == 0) return false;
+    *frame = video_frame_queue_->peekReadable();
+    if (!*frame) return false;
+    video_frame_queue_->frameNext();
+    return true;
+}
 
 SDL2Proxy *SDL2Proxy::instance() {
     static SDL2Proxy self;
@@ -224,21 +257,29 @@ SDL2Proxy::SDL2Proxy() {
     }
 }
 
-SDL2Proxy::~SDL2Proxy() {
-    //
-    SDL_Quit();
-}
+SDL2Proxy::~SDL2Proxy() { SDL_Quit(); }
 
 bool SDL2Proxy::initAudio(SDL_AudioSpec *spec, std::shared_ptr<FrameQueue> &audio_frame_queue) {
     return SDL2Audio::instance()->init(spec, audio_frame_queue);
 }
 
-bool SDL2Proxy::initVideo(int width, int height) { return SDL2Video::instance()->init(width, height); }
+bool SDL2Proxy::initVideo(int width, int height, std::shared_ptr<FrameQueue> &video_frame_queue) {
+    return SDL2Video::instance()->init(width, height, video_frame_queue);
+}
 
 void SDL2Proxy::refreshAudio(void *udata, Uint8 *stream, int len) {
     SDL2Audio::instance()->refresh(udata, stream, len);
 }
 
-void SDL2Proxy::refreshVideo() { SDL2Video::instance()->refresh(); }
+Uint32 SDL2Proxy::refreshVideo(Uint32 interval, void *opaque) {
+    SDL2Video::instance()->refresh([&opaque](int millisecond) {
+        scheduleRefreshVideo(millisecond);
+        // SDL_Event event;
+        // event.type = FF_REFRESH_EVENT;
+        // event.user.data1 = opaque;
+        // SDL_PushEvent(&event);
+    });
+    return 0;
+}
 
-// SDL2Audio *SDL2Proxy::audio() { return &audio_; }
+void SDL2Proxy::scheduleRefreshVideo(int millisecond_time) { SDL_AddTimer(millisecond_time, refreshVideo, nullptr); }
