@@ -18,7 +18,6 @@ public:
     bool decode(AVPacket* pack, DecodeCallback cb) override;
 
 private:
-    // void saveFramAsYUV(AVFrame* pFrame);
     bool pushFrame(AVFrame* frame, double pts, double duration, int64_t pos);
 
 private:

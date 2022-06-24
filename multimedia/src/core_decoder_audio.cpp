@@ -1,9 +1,12 @@
 #include "core_decoder_audio.h"
 #include "glog_proxy.h"
 
-CoreDecoderAudio::CoreDecoderAudio() {}
+CoreDecoderAudio::CoreDecoderAudio() { LOG(INFO) << "CoreDecoderAudio() "; }
 
-CoreDecoderAudio::~CoreDecoderAudio() { unInit(); }
+CoreDecoderAudio::~CoreDecoderAudio() {
+    unInit();
+    LOG(INFO) << "~CoreDecoderAudio() ";
+}
 
 bool CoreDecoderAudio::init(AVFormatContext* format_context, int stream_index, AudioCallback cb,
                             std::shared_ptr<FrameQueue>& audio_frame_queue) {
@@ -38,7 +41,10 @@ bool CoreDecoderAudio::decode(AVPacket* pack, DecodeCallback cb) {
             return false;
         }
 
-        if (!pushFrame(frame_)) return false;
+        if (!pushFrame(frame_)) {
+            av_frame_unref(frame_);
+            return false;
+        }
         cb(frame_->pts);
     }
 
@@ -52,9 +58,9 @@ bool CoreDecoderAudio::decode(AVPacket* pack, DecodeCallback cb) {
 // }
 
 bool CoreDecoderAudio::pushFrame(AVFrame* frame) {
-    // static size_t count = 0;
-    Frame* af;
-    if (!(af = frame_queue_->peekWritable())) return false;
+    Frame* af = nullptr;
+    af = frame_queue_->peekWritable();
+    if (!af) return false;
 
     AVRational tb = {1, frame->sample_rate};
     af->pts = (frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb);
@@ -62,6 +68,8 @@ bool CoreDecoderAudio::pushFrame(AVFrame* frame) {
     af->duration = av_q2d({frame->nb_samples, frame->sample_rate});
     av_frame_move_ref(af->frame, frame);
     frame_queue_->framePush();
+
+    // static size_t count = 0;
     // LOG(INFO) << "audio pushFrame " << ++count;
     return true;
 }

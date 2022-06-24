@@ -1,8 +1,10 @@
 #pragma once
 
 #include "core_common.h"
+#include "core_media_status.h"
 
 #include <condition_variable>
+#include <atomic>
 
 #define FRAME_QUEUE_SIZE 10
 
@@ -53,6 +55,10 @@ public:
 
     void frameUnref(Frame *vp) { av_frame_unref(vp->frame); }
 
+    void setStatus(MediaStatus status) { status_ = status; }
+
+    void notify() { cv_.notify_all(); }
+
 protected:
     Frame queue_[FRAME_QUEUE_SIZE];
     int rindex_;        // 读索引。待播放时读取此帧进行播放，播放后此帧成为上一帧
@@ -66,4 +72,6 @@ protected:
     // PacketQueue *pktq;  // 指向对应的packet_queue
     std::mutex mtx_;
     std::condition_variable cv_;
+
+    std::atomic<MediaStatus> status_;
 };

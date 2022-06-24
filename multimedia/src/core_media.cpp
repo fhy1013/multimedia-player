@@ -12,16 +12,19 @@ CoreMedia::CoreMedia()
       audio_stream_index_(-1),
       tbn_{0, 0},
       media_time_(0),
-      //   is_open_(false),
       thread_video_(nullptr),
       thread_audio_(nullptr),
       thread_demux_(nullptr),
       status_(STOP),
       sdl_proxy_(nullptr) {
+    LOG(INFO) << "CoreMedia() ";
     init();
 }
 
-CoreMedia::~CoreMedia() { unInit(); }
+CoreMedia::~CoreMedia() {
+    unInit();
+    LOG(INFO) << "~CoreMedia() ";
+}
 
 bool CoreMedia::init() {
     format_context_ = avformat_alloc_context();
@@ -34,7 +37,6 @@ bool CoreMedia::init() {
     audio_stream_index_ = -1;
     tbn_ = {0, 0};
     media_time_ = 0;
-    // is_open_ = false;
 
     video_ = new CoreDecoderVideo();
     audio_ = new CoreDecoderAudio();
@@ -61,7 +63,7 @@ bool CoreMedia::init() {
                            std::placeholders::_3);
 
     status_ = STOP;
-    sdl_proxy_ = SDL2Proxy::instance();
+    sdl_proxy_ = std::make_shared<SDL2Proxy>();
 
     audio_frame_queue_ = std::make_shared<FrameQueue>();
     video_frame_queue_ = std::make_shared<FrameQueue>();
@@ -81,8 +83,6 @@ void CoreMedia::unInit() {
         video_ = nullptr;
     }
 
-    close();
-
     if (thread_demux_) {
         delete thread_demux_;
         thread_demux_ = nullptr;
@@ -96,6 +96,8 @@ void CoreMedia::unInit() {
         thread_video_ = nullptr;
     }
     status_cb_ = nullptr;
+
+    close();
 }
 
 bool CoreMedia::start() {
@@ -105,6 +107,8 @@ bool CoreMedia::start() {
         return false;
     }
     status_ = START;
+    videoFrameQueue()->setStatus(START);
+    audioFrameQueue()->setStatus(START);
 
     if (!initVideo() || !initAudio() || !startThreads()) {
         unInit();
@@ -116,9 +120,7 @@ bool CoreMedia::start() {
 
 bool CoreMedia::stop() {
     status_ = STOP;
-    // WaitForSingleObject(thread_demux_->waitCloseHandle(), INFINITE);
-    // WaitForSingleObject(thread_video_->waitCloseHandle(), INFINITE);
-    // WaitForSingleObject(thread_audio_->waitCloseHandle(), INFINITE);
+    stopThreads();
     unInit();
     return true;
 }
@@ -133,10 +135,6 @@ bool CoreMedia::stop() {
 
 bool CoreMedia::open(const std::string& media) {
     media_ = media;
-    // auto status = is_open_.exchange(true);
-    // if (!status) {
-    //     avformat_close_input(&format_context_);
-    // }
     if (avformat_open_input(&format_context_, media_.c_str(), NULL, NULL) != 0) {
         LOG(ERROR) << "ERROR could not open the file " << media_;
         return false;
@@ -190,8 +188,8 @@ void CoreMedia::loop() {
                 break;
             // case FF_QUIT_EVENT:
             case SDL_QUIT:
-                status_ = STOP;
                 quit = true;
+                stop();
                 break;
 
             default:
@@ -199,19 +197,22 @@ void CoreMedia::loop() {
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(3));
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+    // std::this_thread::sleep_for(std::chrono::milliseconds(3000));
     LOG(INFO) << "CoreMedia::loop() end, program quit";
 }
+
+std::shared_ptr<FrameQueue>& CoreMedia::videoFrameQueue() { return video_frame_queue_; }
+std::shared_ptr<FrameQueue>& CoreMedia::audioFrameQueue() { return audio_frame_queue_; }
 
 bool CoreMedia::initVideo() {
     if (video_stream_index_ >= 0)
         return video_->init(
             format_context_, video_stream_index_,
             [this](int width, int height) {
-                sdl_proxy_->initVideo(width, height, video_frame_queue_);
+                sdl_proxy_->initVideo(width, height, this);
                 sdl_proxy_->scheduleRefreshVideo(1);
             },
-            video_frame_queue_);
+            videoFrameQueue());
     return true;
 }
 
@@ -231,9 +232,9 @@ bool CoreMedia::initAudio() {
                 spec.samples = SDL_AUDIO_BUFFER_SIZE;
                 spec.callback = sdl_proxy_->refreshAudio;
                 spec.userdata = this;
-                return sdl_proxy_->initAudio(&spec, audio_frame_queue_);
+                return sdl_proxy_->initAudio(&spec, this);
             },
-            audio_frame_queue_);
+            audioFrameQueue());
     return true;
 }
 
@@ -242,4 +243,15 @@ bool CoreMedia::startThreads() {
     thread_audio_->start();
     thread_demux_->start();
     return true;
+}
+void CoreMedia::stopThreads() {
+    WaitForSingleObject(thread_demux_->waitCloseHandle(), INFINITE);
+
+    videoFrameQueue()->setStatus(STOP);
+    videoFrameQueue()->notify();
+    WaitForSingleObject(thread_video_->waitCloseHandle(), 3);
+
+    audioFrameQueue()->setStatus(STOP);
+    audioFrameQueue()->notify();
+    WaitForSingleObject(thread_audio_->waitCloseHandle(), 3);
 }

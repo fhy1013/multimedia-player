@@ -10,9 +10,14 @@ CoreDecoder::CoreDecoder()
       stream_(nullptr),
       frame_(nullptr),
       packet_queue_(nullptr),
-      frame_queue_(nullptr) {}
+      frame_queue_(nullptr) {
+    LOG(INFO) << "CoreDecoder() ";
+}
 
-CoreDecoder::~CoreDecoder() { unInit(); }
+CoreDecoder::~CoreDecoder() {
+    unInit();
+    LOG(INFO) << "~CoreDecoder() ";
+}
 
 bool CoreDecoder::init(AVFormatContext* format_context, int stream_index, std::shared_ptr<FrameQueue>& frame_queue) {
     unInit();

@@ -1,8 +1,15 @@
 #include "core_frame_queue.h"
+#include "glog_proxy.h"
 
-FrameQueue::FrameQueue() { init(); }
+FrameQueue::FrameQueue() {
+    LOG(INFO) << "FrameQueue() ";
+    init();
+}
 
-FrameQueue::~FrameQueue() { destroy(); }
+FrameQueue::~FrameQueue() {
+    destroy();
+    LOG(INFO) << "~FrameQueue() ";
+}
 
 int FrameQueue::init(int max_size, int keep_last) {
     memset(queue_, 0, sizeof(Frame) * FRAME_QUEUE_SIZE);
@@ -15,6 +22,8 @@ int FrameQueue::init(int max_size, int keep_last) {
 
     for (auto i = 0; i < max_size_; ++i)
         if (!(queue_[i].frame = av_frame_alloc())) return AVERROR(ENOMEM);
+
+    status_ = STOP;
     return 0;
 }
 
@@ -28,7 +37,8 @@ void FrameQueue::destroy() {
 Frame *FrameQueue::peekWritable() {
     {
         std::unique_lock<std::mutex> lck(mtx_);
-        cv_.wait(lck, [this] { return size_ < max_size_; });
+        cv_.wait(lck, [this] { return size_ < max_size_ || status_ == STOP; });
+        if (status_ == STOP) return nullptr;
     }
 
     return &queue_[windex_];
@@ -37,7 +47,8 @@ Frame *FrameQueue::peekWritable() {
 Frame *FrameQueue::peekReadable() {
     {
         std::unique_lock<std::mutex> lck(mtx_);
-        cv_.wait(lck, [this] { return size_ - rindex_shown_ > 0; });
+        cv_.wait(lck, [this] { return size_ - rindex_shown_ > 0 || status_ == STOP; });
+        if (status_ == STOP) return nullptr;
     }
 
     return &queue_[(rindex_ + rindex_shown_) % max_size_];

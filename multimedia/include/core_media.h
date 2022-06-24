@@ -16,38 +16,32 @@ typedef std::function<void(AVMediaType type, MediaStatus status, long pts)> Stat
 class CoreMedia {
 public:
     CoreMedia();
-
     CoreMedia(const CoreMedia&) = delete;
-
     virtual ~CoreMedia();
 
     bool init();
-
     void unInit();
 
     bool start();
-
     bool stop();
-
     // bool pause();
 
     bool open(const std::string& media);
-
-    // bool isOpen() const { return is_open_.load(); }
-
     bool close();
 
     void statusCallback(AVMediaType type, MediaStatus status, long pts);
-
     MediaStatus status() const { return status_; }
-
     void loop();
+
+    std::shared_ptr<FrameQueue>& videoFrameQueue();
+    std::shared_ptr<FrameQueue>& audioFrameQueue();
 
 private:
     bool initVideo();
     bool initAudio();
 
     bool startThreads();
+    void stopThreads();
 
 public:
     StatusCallback status_cb_;
@@ -64,8 +58,6 @@ private:
 
     AVRational tbn_;
     size_t media_time_;
-
-    // std::atomic<bool> is_open_;
     SwrContext* swr_context_;
 
     CoreThreadVideo* thread_video_;
@@ -73,11 +65,10 @@ private:
     CoreThreadDemux* thread_demux_;
 
     std::atomic<MediaStatus> status_;
-
     SDL_Event event_;
 
 public:
-    SDL2Proxy* sdl_proxy_;
+    std::shared_ptr<SDL2Proxy> sdl_proxy_;
 
     std::shared_ptr<FrameQueue> audio_frame_queue_;
     std::shared_ptr<FrameQueue> video_frame_queue_;

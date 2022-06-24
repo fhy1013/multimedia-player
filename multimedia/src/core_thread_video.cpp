@@ -2,9 +2,9 @@
 #include "glog_proxy.h"
 #include "core_media.h"
 
-CoreThreadVideo::CoreThreadVideo(CoreMedia* core_media) : CoreThread(core_media) {}
+CoreThreadVideo::CoreThreadVideo(CoreMedia* core_media) : CoreThread(core_media) { LOG(INFO) << "CoreThreadVideo() "; }
 
-CoreThreadVideo::~CoreThreadVideo() {}
+CoreThreadVideo::~CoreThreadVideo() { LOG(INFO) << "~CoreThreadVideo() "; }
 
 bool CoreThreadVideo::start() {
     std::thread([&] { this->videoDecode(); }).detach();
@@ -29,13 +29,13 @@ void CoreThreadVideo::videoDecode() {
             continue;
         }
 
-        if (packets->empty()) {
-            std::this_thread::sleep_for(std::chrono::microseconds(1));
-            continue;
-        }
+        // if (packets->empty()) {
+        //     std::this_thread::sleep_for(std::chrono::microseconds(1));
+        //     continue;
+        // }
 
         if (!packets->pop(packet)) {
-            // std::this_thread::sleep_for(std::chrono::nanoseconds(1));
+            std::this_thread::sleep_for(std::chrono::microseconds(1));
             av_packet_unref(packet);
             continue;
         }
@@ -45,7 +45,7 @@ void CoreThreadVideo::videoDecode() {
     av_packet_free(&packet);
     packets->clear();
 
-    // SetEvent(handle_);
+    SetEvent(handle_);
     LOG(INFO) << "video decoder thread is stop";
     return;
 }

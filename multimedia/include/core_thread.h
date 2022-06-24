@@ -20,12 +20,10 @@ public:
 
     virtual void frameCallback(long pts) = 0;
 
-    // static std::string status(ThreadStatus &thread_status);
-
-    // HANDLE &waitCloseHandle() { return handle_; }
+    HANDLE &waitCloseHandle() { return handle_; }
 
 protected:
     CoreMedia *core_media_;
 
-    // HANDLE handle_;
+    HANDLE handle_;
 };

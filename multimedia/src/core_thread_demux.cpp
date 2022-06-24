@@ -2,9 +2,9 @@
 #include "glog_proxy.h"
 #include "core_media.h"
 
-CoreThreadDemux::CoreThreadDemux(CoreMedia* core_media) : CoreThread(core_media) {}
+CoreThreadDemux::CoreThreadDemux(CoreMedia* core_media) : CoreThread(core_media) { LOG(INFO) << "CoreThreadDemux() "; }
 
-CoreThreadDemux::~CoreThreadDemux() {}
+CoreThreadDemux::~CoreThreadDemux() { LOG(INFO) << "~CoreThreadDemux() "; }
 
 bool CoreThreadDemux::start() {
     std::thread([&] { this->demux(); }).detach();
@@ -18,7 +18,8 @@ void CoreThreadDemux::demux() {
 
     bool ret = true;
     AVPacket* packet = av_packet_alloc();
-    // size_t acount = 0;
+    size_t acount = 0;
+    size_t vcount = 0;
     while (true) {
         if (STOP == core_media_->status()) {
             if (packet) av_packet_unref(packet);
@@ -54,7 +55,7 @@ void CoreThreadDemux::demux() {
     }
     av_packet_free(&packet);
 
-    // SetEvent(handle_);
+    SetEvent(handle_);
     LOG(INFO) << "demux thread is stop";
     return;
 }

@@ -13,11 +13,14 @@ extern "C" {
 #define MAX_AUDIO_FRAME_SIZE 192000
 #define SDL_AUDIO_BUFFER_SIZE 512
 
+class CoreMedia;
+
 class SDL2Audio {
 public:
     static SDL2Audio *instance();
 
-    bool init(SDL_AudioSpec *spec, std::shared_ptr<FrameQueue> &audio_frame_queue);
+    bool init(SDL_AudioSpec *spec, CoreMedia *core_media);
+    void uninit();
 
     void refresh(void *udata, Uint8 *stream, int len);
 
@@ -42,7 +45,7 @@ private:
     unsigned int audio_buf_size_;
     int audio_buf_index_;
 
-    std::shared_ptr<FrameQueue> audio_frame_queue_;
+    CoreMedia *core_media_;
     int64_t audio_callback_time_;
 };
 
@@ -56,7 +59,7 @@ private:
     ~SDL2Video();
 
 public:
-    bool init(int width, int height, std::shared_ptr<FrameQueue> &video_frame_queue);
+    bool init(int width, int height, CoreMedia *core_media);
     bool refresh(VideoRefreshCallbacks cb);
     void uninit();
 
@@ -69,7 +72,7 @@ private:
     SDL_Texture *texture_;
     SDL_Rect rect_;
 
-    std::shared_ptr<FrameQueue> video_frame_queue_;
+    CoreMedia *core_media_;
 };
 
 class SDL2Event {
@@ -80,20 +83,16 @@ private:
 
 class SDL2Proxy {
 public:
-    static SDL2Proxy *instance();
+    SDL2Proxy();
+    ~SDL2Proxy();
 
-    bool initAudio(SDL_AudioSpec *spec, std::shared_ptr<FrameQueue> &audio_frame_queue);
-    bool initVideo(int width, int height, std::shared_ptr<FrameQueue> &video_frame_queue);
+    bool initAudio(SDL_AudioSpec *spec, CoreMedia *core_media);
+    bool initVideo(int width, int height, CoreMedia *core_media);
+
+    void uninit();
 
     static void refreshAudio(void *udata, Uint8 *stream, int len);
     static Uint32 refreshVideo(Uint32 interval, void *opaque);
 
     static void scheduleRefreshVideo(int millisecond_time);
-
-private:
-    SDL2Proxy();
-    ~SDL2Proxy();
-
-    // private:
-    //     SDL2Video sdl_video_;
 };

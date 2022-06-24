@@ -6,18 +6,21 @@
 
 #include <fstream>
 
-SDL2Audio::SDL2Audio() : audio_buf_(nullptr), audio_buf_size_(0), audio_buf_index_(0), audio_callback_time_(0) {}
+SDL2Audio::SDL2Audio()
+    : audio_buf_(nullptr), audio_buf_size_(0), audio_buf_index_(0), audio_callback_time_(0), core_media_(nullptr) {
+    LOG(INFO) << "SDL2Audio() ";
+}
 
-SDL2Audio::~SDL2Audio() {}
+SDL2Audio::~SDL2Audio() { LOG(INFO) << "~SDL2Audio() "; }
 
 SDL2Audio *SDL2Audio::instance() {
     static SDL2Audio self;
     return &self;
 }
 
-bool SDL2Audio::init(SDL_AudioSpec *spec, std::shared_ptr<FrameQueue> &audio_frame_queue) {
+bool SDL2Audio::init(SDL_AudioSpec *spec, CoreMedia *core_media) {
     spec_ = *spec;
-    audio_frame_queue_ = audio_frame_queue;
+    core_media_ = core_media;
 
     // The second paramter of SDL_OpenAudio must bo nullptr.
     // if it is an object of SDL_AudioSpec audio playback has no sound.
@@ -30,13 +33,19 @@ bool SDL2Audio::init(SDL_AudioSpec *spec, std::shared_ptr<FrameQueue> &audio_fra
     return true;
 }
 
+void SDL2Audio::uninit() { SDL_CloseAudio(); }
+
 void SDL2Audio::refresh(void *udata, Uint8 *stream, int len) {
     CoreMedia *core_media = (CoreMedia *)udata;
     int audio_size;
     int len1;
 
-    static size_t count = 0;
-    // LOG(INFO) << "refresh len: " << len;
+    if (core_media_->status() == STOP) {
+        SDL_PauseAudio(1);
+        return;
+    }
+
+    // static size_t count = 0;
     SDL_memset(stream, 0, len);
     while (len > 0) {
         if (audio_buf_index_ >= audio_buf_size_) {
@@ -47,9 +56,9 @@ void SDL2Audio::refresh(void *udata, Uint8 *stream, int len) {
                 audio_buf_ = new uint8_t[SDL_AUDIO_BUFFER_SIZE];
                 memset(audio_buf_, 0x00, SDL_AUDIO_BUFFER_SIZE);
                 audio_buf_size_ = SDL_AUDIO_BUFFER_SIZE;
-                LOG(WARNING) << "audio refresh get buffer failed, set silence ";
+                // LOG(WARNING) << "audio refresh get buffer failed, set silence ";
             } else {
-                // LOG(INFO) << "audio refresh get buffer " << ++count << ", size: " << audio_size;
+                // LOG(INFO) << "audio refresh frames: " << ++count << ", size: " << audio_size;
                 audio_buf_size_ = audio_size;
             }
             audio_buf_index_ = 0;
@@ -57,7 +66,6 @@ void SDL2Audio::refresh(void *udata, Uint8 *stream, int len) {
         len1 = audio_buf_size_ - audio_buf_index_;
         if (len1 > len) len1 = len;
         SDL_MixAudio(stream, (uint8_t *)audio_buf_ + audio_buf_index_, len1, SDL_MIX_MAXVOLUME);
-        // writePcm(audio_buf_ + audio_buf_index_, len1);
 
         len -= len1;
         stream += len1;
@@ -74,13 +82,13 @@ void SDL2Audio::refresh(void *udata, Uint8 *stream, int len) {
 int SDL2Audio::getPcmFromAudioFrameQueue() {
     Frame *af = nullptr;
 
-    while (audio_frame_queue_->frameRemaining() == 0) {
+    if (core_media_->audioFrameQueue()->frameRemaining() == 0) {
         // if ((av_gettime_relative() - audio_callback_time_) > )
         return -1;
     }
-    af = audio_frame_queue_->peekReadable();
+    af = core_media_->audioFrameQueue()->peekReadable();
     if (!af) return -1;
-    audio_frame_queue_->frameNext();
+    core_media_->audioFrameQueue()->frameNext();
 
     auto swresample_proxy = SwresampleProxy::instance();
     auto nb_samples = swresample_proxy->avRescaleRnd(af->frame);
@@ -88,6 +96,10 @@ int SDL2Audio::getPcmFromAudioFrameQueue() {
 
     auto out_swr_context = swresample_proxy->outSwrContextParam();
 
+    if (sambuf_size <= 0) {
+        LOG(ERROR) << "avSamplesGetBufferSize() <= 0, nb_samples: " << nb_samples;
+        return -1;
+    }
     // new convert buffer
     std::shared_ptr<AudioFrameBuffer> audio_buf =
         std::make_shared<AudioFrameBuffer>(out_swr_context.channel, sambuf_size, out_swr_context.format);
@@ -109,6 +121,10 @@ int SDL2Audio::getPcmFromAudioFrameQueue() {
     //     }
     // }
     auto convert_buffer_size = swresample_proxy->avSamplesGetBufferSize(nb_convert);
+    if (convert_buffer_size <= 0) {
+        LOG(ERROR) << "avSamplesGetBufferSize() <= 0, nb_convert: " << nb_convert;
+        return -1;
+    }
     audio_buf_ = new uint8_t[convert_buffer_size];
     memset(audio_buf_, 0x00, convert_buffer_size);
     if (av_sample_fmt_is_planar(out_swr_context.format))
@@ -170,17 +186,19 @@ void SDL2Audio::copyPacked(uint8_t *des, uint8_t **src, AVSampleFormat format, i
 //     out.write(reinterpret_cast<char *>(data), len);
 // }
 
-SDL2Video::SDL2Video() : window_(nullptr), render_(nullptr), texture_(nullptr), rect_({0, 0, 0, 0}) {}
+SDL2Video::SDL2Video()
+    : window_(nullptr), render_(nullptr), texture_(nullptr), rect_({0, 0, 0, 0}), core_media_(nullptr) {
+    LOG(INFO) << "SDL2Video() ";
+}
 
-SDL2Video::~SDL2Video() { uninit(); }
-
+SDL2Video::~SDL2Video() { LOG(INFO) << "~SDL2Video() "; }
 SDL2Video *SDL2Video::instance() {
     static SDL2Video self;
     return &self;
 }
 
-bool SDL2Video::init(int width, int height, std::shared_ptr<FrameQueue> &video_frame_queue) {
-    video_frame_queue_ = video_frame_queue;
+bool SDL2Video::init(int width, int height, CoreMedia *core_media) {
+    core_media_ = core_media;
 
     window_ = SDL_CreateWindow("Multimedia-Player", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height,
                                SDL_WINDOW_SHOWN);
@@ -202,6 +220,8 @@ bool SDL2Video::init(int width, int height, std::shared_ptr<FrameQueue> &video_f
 }
 
 bool SDL2Video::refresh(VideoRefreshCallbacks cb) {
+    if (core_media_->status() == STOP) return true;
+
     Frame *af = nullptr;
     if (getFrame(&af)) {
         cb(af->duration);
@@ -216,6 +236,9 @@ bool SDL2Video::refresh(VideoRefreshCallbacks cb) {
         SDL_RenderClear(render_);
         SDL_RenderCopy(render_, texture_, nullptr, &rect_);
         SDL_RenderPresent(render_);
+
+        // static size_t count = 0;
+        // LOG(INFO) << "video refresh frames: " << ++count;
     } else {
         cb(1);
         return false;
@@ -238,33 +261,38 @@ void SDL2Video::uninit() {
     }
 }
 bool SDL2Video::getFrame(Frame **frame) {
-    if (video_frame_queue_->frameRemaining() == 0) return false;
-    *frame = video_frame_queue_->peekReadable();
+    if (core_media_->videoFrameQueue()->frameRemaining() == 0) return false;
+    *frame = core_media_->videoFrameQueue()->peekReadable();
     if (!*frame) return false;
-    video_frame_queue_->frameNext();
+    core_media_->videoFrameQueue()->frameNext();
     return true;
 }
 
-SDL2Proxy *SDL2Proxy::instance() {
-    static SDL2Proxy self;
-    return &self;
-}
-
 SDL2Proxy::SDL2Proxy() {
+    LOG(INFO) << "SDL2Proxy() ";
     if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_TIMER)) {
         LOG(ERROR) << "failed SDL_Init";
         return;
     }
 }
 
-SDL2Proxy::~SDL2Proxy() { SDL_Quit(); }
-
-bool SDL2Proxy::initAudio(SDL_AudioSpec *spec, std::shared_ptr<FrameQueue> &audio_frame_queue) {
-    return SDL2Audio::instance()->init(spec, audio_frame_queue);
+SDL2Proxy::~SDL2Proxy() {
+    uninit();
+    SDL_Quit();
+    LOG(INFO) << "~SDL2Proxy() ";
 }
 
-bool SDL2Proxy::initVideo(int width, int height, std::shared_ptr<FrameQueue> &video_frame_queue) {
-    return SDL2Video::instance()->init(width, height, video_frame_queue);
+bool SDL2Proxy::initAudio(SDL_AudioSpec *spec, CoreMedia *core_media) {
+    return SDL2Audio::instance()->init(spec, core_media);
+}
+
+bool SDL2Proxy::initVideo(int width, int height, CoreMedia *core_media) {
+    return SDL2Video::instance()->init(width, height, core_media);
+}
+
+void SDL2Proxy::uninit() {
+    SDL2Audio::instance()->uninit();
+    SDL2Video::instance()->uninit();
 }
 
 void SDL2Proxy::refreshAudio(void *udata, Uint8 *stream, int len) {
