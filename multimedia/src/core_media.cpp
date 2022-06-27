@@ -1,5 +1,6 @@
 #include "core_media.h"
 #include "glog_proxy.h"
+#include "swscale_proxy.h"
 
 #include <functional>
 
@@ -226,8 +227,11 @@ bool CoreMedia::initVideo() {
     if (video_stream_index_ >= 0)
         return video_->init(
             format_context_, video_stream_index_,
-            [this](int width, int height) {
-                sdl_proxy_->initVideo(width, height, this);
+            [this](VideoParams in) {
+                VideoParams out{1280, 720, in.format};
+                if (!SwscaleProxy::instance()->init(in, out)) return false;
+                // sdl_proxy_->initVideo(in.width, in.height, this);
+                sdl_proxy_->initVideo(out, this);
                 sdl_proxy_->scheduleRefreshVideo(1);
             },
             videoFrameQueue());

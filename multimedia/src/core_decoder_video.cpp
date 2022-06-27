@@ -13,7 +13,8 @@ bool CoreDecoderVideo::init(AVFormatContext *format_context, int stream_index, V
     auto ret = CoreDecoder::init(format_context, stream_index, video_frame_queue);
     if (!ret) return ret;
 
-    cb(codec_context_->width, codec_context_->height);
+    VideoParams in{codec_context_->width, codec_context_->height, codec_context_->pix_fmt};
+    if (!cb(in)) return false;
     tb_ = stream_->time_base;
     frame_rate_ = av_guess_frame_rate(formatContext(), stream_, NULL);
     return ret;

@@ -1,5 +1,7 @@
 #pragma once
 #include "core_frame_queue.h"
+#include "swscale_proxy.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -59,7 +61,7 @@ private:
     ~SDL2Video();
 
 public:
-    bool init(int width, int height, CoreMedia *core_media);
+    bool init(VideoParams video_params, CoreMedia *core_media);
     bool refresh(VideoRefreshCallbacks cb);
     void uninit();
 
@@ -73,6 +75,7 @@ private:
     SDL_Rect rect_;
 
     CoreMedia *core_media_;
+    AVFrame *frame_;
 };
 
 class SDL2Event {
@@ -87,7 +90,7 @@ public:
     ~SDL2Proxy();
 
     bool initAudio(SDL_AudioSpec *spec, CoreMedia *core_media);
-    bool initVideo(int width, int height, CoreMedia *core_media);
+    bool initVideo(VideoParams video_params, CoreMedia *core_media);
 
     void uninit();
 

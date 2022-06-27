@@ -1,8 +1,9 @@
 #pragma once
 
 #include "core_decoder.h"
+#include "swscale_proxy.h"
 
-typedef std::function<void(int width, int height)> VideoCallback;
+typedef std::function<bool(VideoParams in)> VideoCallback;
 
 class CoreDecoderVideo : public CoreDecoder {
 public:

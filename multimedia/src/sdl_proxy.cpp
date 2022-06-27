@@ -1,10 +1,19 @@
 #include "sdl_proxy.h"
 #include "glog_proxy.h"
 #include "core_media.h"
-#include "swresample_proxy.h"
 #include "audio_frame_buffer.h"
 
 #include <fstream>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <libavutil/imgutils.h>
+
+#ifdef __cplusplus
+}
+#endif
 
 SDL2Audio::SDL2Audio()
     : audio_buf_(nullptr), audio_buf_size_(0), audio_buf_index_(0), audio_callback_time_(0), core_media_(nullptr) {
@@ -187,21 +196,36 @@ void SDL2Audio::copyPacked(uint8_t *des, uint8_t **src, AVSampleFormat format, i
 // }
 
 SDL2Video::SDL2Video()
-    : window_(nullptr), render_(nullptr), texture_(nullptr), rect_({0, 0, 0, 0}), core_media_(nullptr) {
+    : window_(nullptr),
+      render_(nullptr),
+      texture_(nullptr),
+      rect_({0, 0, 0, 0}),
+      core_media_(nullptr),
+      frame_(nullptr) {
     LOG(INFO) << "SDL2Video() ";
+    frame_ = av_frame_alloc();
 }
 
-SDL2Video::~SDL2Video() { LOG(INFO) << "~SDL2Video() "; }
+SDL2Video::~SDL2Video() {
+    if (!frame_) av_frame_free(&frame_);
+    LOG(INFO) << "~SDL2Video() ";
+}
 SDL2Video *SDL2Video::instance() {
     static SDL2Video self;
     return &self;
 }
 
-bool SDL2Video::init(int width, int height, CoreMedia *core_media) {
+bool SDL2Video::init(VideoParams video_params, CoreMedia *core_media) {
     core_media_ = core_media;
+    auto err =
+        av_image_alloc(frame_->data, frame_->linesize, video_params.width, video_params.height, video_params.format, 1);
+    if (err < 0) {
+        LOG(INFO) << "av_image_alloc failed" << err2str(err);
+        return false;
+    }
 
-    window_ = SDL_CreateWindow("Multimedia-Player", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height,
-                               SDL_WINDOW_SHOWN);
+    window_ = SDL_CreateWindow("Multimedia-Player", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+                               video_params.width, video_params.height, SDL_WINDOW_SHOWN);
     if (!window_) {
         LOG(ERROR) << "failed to create window by sdl";
         return false;
@@ -211,7 +235,8 @@ bool SDL2Video::init(int width, int height, CoreMedia *core_media) {
         LOG(ERROR) << "failed to create render";
         return false;
     }
-    texture_ = SDL_CreateTexture(render_, SDL_PIXELFORMAT_IYUV, SDL_TEXTUREACCESS_STREAMING, width, height);
+    texture_ = SDL_CreateTexture(render_, SDL_PIXELFORMAT_IYUV, SDL_TEXTUREACCESS_STREAMING, video_params.width,
+                                 video_params.height);
     if (!texture_) {
         LOG(ERROR) << "failed to create texture";
         return false;
@@ -226,12 +251,18 @@ bool SDL2Video::refresh(VideoRefreshCallbacks cb) {
     if (getFrame(&af)) {
         cb(af->duration);
 
-        SDL_UpdateYUVTexture(texture_, nullptr, af->frame->data[0], af->frame->linesize[0], af->frame->data[1],
-                             af->frame->linesize[1], af->frame->data[2], af->frame->linesize[2]);
+        auto height = SwscaleProxy::instance()->scaled((uint8_t const *const *)af->frame, af->frame->linesize, 0,
+                                                       af->height, frame_->data, frame_->linesize);
+        // SDL_UpdateYUVTexture(texture_, nullptr, af->frame->data[0], af->frame->linesize[0], af->frame->data[1],
+        //                      af->frame->linesize[1], af->frame->data[2], af->frame->linesize[2]);
+        SDL_UpdateYUVTexture(texture_, nullptr, frame_->data[0], frame_->linesize[0], frame_->data[1],
+                             frame_->linesize[1], frame_->data[2], frame_->linesize[2]);
         rect_.x = 0;
         rect_.y = 0;
-        rect_.w = af->width;
-        rect_.h = af->height;
+        // rect_.w = af->width;
+        // rect_.h = af->height;
+        rect_.w = frame_->linesize[0];
+        rect_.h = frame_->linesize[1];
 
         SDL_RenderClear(render_);
         SDL_RenderCopy(render_, texture_, nullptr, &rect_);
@@ -259,6 +290,8 @@ void SDL2Video::uninit() {
         SDL_DestroyWindow(window_);
         window_ = nullptr;
     }
+
+    av_freep(&frame_->data[0]);
 }
 bool SDL2Video::getFrame(Frame **frame) {
     if (core_media_->videoFrameQueue()->frameRemaining() == 0) return false;
@@ -286,8 +319,8 @@ bool SDL2Proxy::initAudio(SDL_AudioSpec *spec, CoreMedia *core_media) {
     return SDL2Audio::instance()->init(spec, core_media);
 }
 
-bool SDL2Proxy::initVideo(int width, int height, CoreMedia *core_media) {
-    return SDL2Video::instance()->init(width, height, core_media);
+bool SDL2Proxy::initVideo(VideoParams video_params, CoreMedia *core_media) {
+    return SDL2Video::instance()->init(video_params, core_media);
 }
 
 void SDL2Proxy::uninit() {
