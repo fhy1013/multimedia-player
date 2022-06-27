@@ -47,7 +47,7 @@ Frame *FrameQueue::peekWritable() {
 Frame *FrameQueue::peekReadable() {
     {
         std::unique_lock<std::mutex> lck(mtx_);
-        cv_.wait(lck, [this] { return size_ - rindex_shown_ > 0 || status_ == STOP; });
+        cv_.wait(lck, [this] { return (size_ - rindex_shown_ > 0 && status_ != PAUSE) || status_ == STOP; });
         if (status_ == STOP) return nullptr;
     }
 

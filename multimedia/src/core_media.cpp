@@ -125,13 +125,16 @@ bool CoreMedia::stop() {
     return true;
 }
 
-// bool CoreMedia::pause() {
-//     thread_demux_->setStatus(PAUSE);
-//     thread_audio_->setStatus(PAUSE);
-//     thread_video_->setStatus(PAUSE);
-//     status_ = PAUSE;
-//     return true;
-// }
+bool CoreMedia::pause() {
+    if (status() == PAUSE)
+        status_ = START;
+    else if (status() == START)
+        status_ = PAUSE;
+    // videoFrameQueue()->setStatus(status());
+    // audioFrameQueue()->setStatus(status());
+
+    return true;
+}
 
 bool CoreMedia::open(const std::string& media) {
     media_ = media;
@@ -183,6 +186,21 @@ void CoreMedia::loop() {
     while (!quit) {
         SDL_PollEvent(&event_);
         switch (event_.type) {
+            case SDL_KEYDOWN:
+                switch (event_.key.keysym.sym) {
+                    case SDLK_p:
+                    case SDLK_SPACE:
+                        pause();
+                        break;
+                    case SDLK_q:
+                    case SDLK_ESCAPE:
+                        quit = true;
+                        stop();
+                        break;
+                    default:
+                        break;
+                }
+                break;
             case FF_REFRESH_EVENT:
                 // sdl_proxy_->refreshVideo(0, event_.user.data1);
                 break;
@@ -247,11 +265,11 @@ bool CoreMedia::startThreads() {
 void CoreMedia::stopThreads() {
     WaitForSingleObject(thread_demux_->waitCloseHandle(), INFINITE);
 
-    videoFrameQueue()->setStatus(STOP);
+    videoFrameQueue()->setStatus(status());
     videoFrameQueue()->notify();
     WaitForSingleObject(thread_video_->waitCloseHandle(), 3);
 
-    audioFrameQueue()->setStatus(STOP);
+    audioFrameQueue()->setStatus(status());
     audioFrameQueue()->notify();
     WaitForSingleObject(thread_audio_->waitCloseHandle(), 3);
 }

@@ -24,7 +24,7 @@ public:
 
     bool start();
     bool stop();
-    // bool pause();
+    bool pause();
 
     bool open(const std::string& media);
     bool close();

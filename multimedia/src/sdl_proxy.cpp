@@ -300,8 +300,8 @@ void SDL2Proxy::refreshAudio(void *udata, Uint8 *stream, int len) {
 }
 
 Uint32 SDL2Proxy::refreshVideo(Uint32 interval, void *opaque) {
-    SDL2Video::instance()->refresh([&opaque](int millisecond) {
-        scheduleRefreshVideo(millisecond);
+    SDL2Video::instance()->refresh([&opaque](int milliseconds_delay) {
+        scheduleRefreshVideo(milliseconds_delay);
         // SDL_Event event;
         // event.type = FF_REFRESH_EVENT;
         // event.user.data1 = opaque;

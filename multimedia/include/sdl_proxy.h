@@ -49,7 +49,7 @@ private:
     int64_t audio_callback_time_;
 };
 
-typedef std::function<void(int millisecond)> VideoRefreshCallbacks;
+typedef std::function<void(int milliseconds_delay)> VideoRefreshCallbacks;
 class SDL2Video {
 public:
     static SDL2Video *instance();
