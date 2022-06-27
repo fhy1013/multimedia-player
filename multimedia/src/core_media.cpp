@@ -131,6 +131,7 @@ bool CoreMedia::pause() {
         status_ = START;
     else if (status() == START)
         status_ = PAUSE;
+    // LOG(INFO) << "pause";
     // videoFrameQueue()->setStatus(status());
     // audioFrameQueue()->setStatus(status());
 

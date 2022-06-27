@@ -55,11 +55,15 @@ void SDL2Audio::refresh(void *udata, Uint8 *stream, int len) {
     }
 
     // static size_t count = 0;
+    // LOG(INFO) << "audio refresh frames: " << ++count;
     SDL_memset(stream, 0, len);
     while (len > 0) {
         if (audio_buf_index_ >= audio_buf_size_) {
-            // get audio frame form audio frame queue
-            audio_size = getPcmFromAudioFrameQueue();
+            if (core_media_->status() == PAUSE)
+                audio_size = -1;
+            else
+                // get audio frame form audio frame queue
+                audio_size = getPcmFromAudioFrameQueue();
             // audio_size = getPcmFromFile();
             if (audio_size < 0) {
                 audio_buf_ = new uint8_t[SDL_AUDIO_BUFFER_SIZE];
@@ -210,6 +214,7 @@ SDL2Video::~SDL2Video() {
     if (!frame_) av_frame_free(&frame_);
     LOG(INFO) << "~SDL2Video() ";
 }
+
 SDL2Video *SDL2Video::instance() {
     static SDL2Video self;
     return &self;
@@ -246,10 +251,14 @@ bool SDL2Video::init(VideoParams video_params, CoreMedia *core_media) {
 
 bool SDL2Video::refresh(VideoRefreshCallbacks cb) {
     if (core_media_->status() == STOP) return true;
-
+    if (core_media_->status() == PAUSE) {
+        cb(1);
+        return true;
+    }
     Frame *af = nullptr;
     if (getFrame(&af)) {
-        cb(af->duration);
+        // LOG(INFO) << "pts " << af->pts << ", delay " << af->duration;
+        cb(af->duration * 1000);  // seconds to milliseconds
 
         auto height = SwscaleProxy::instance()->scaled((uint8_t const *const *)af->frame, af->frame->linesize, 0,
                                                        af->height, frame_->data, frame_->linesize);
@@ -293,6 +302,7 @@ void SDL2Video::uninit() {
 
     av_freep(&frame_->data[0]);
 }
+
 bool SDL2Video::getFrame(Frame **frame) {
     if (core_media_->videoFrameQueue()->frameRemaining() == 0) return false;
     *frame = core_media_->videoFrameQueue()->peekReadable();
@@ -333,13 +343,7 @@ void SDL2Proxy::refreshAudio(void *udata, Uint8 *stream, int len) {
 }
 
 Uint32 SDL2Proxy::refreshVideo(Uint32 interval, void *opaque) {
-    SDL2Video::instance()->refresh([&opaque](int milliseconds_delay) {
-        scheduleRefreshVideo(milliseconds_delay);
-        // SDL_Event event;
-        // event.type = FF_REFRESH_EVENT;
-        // event.user.data1 = opaque;
-        // SDL_PushEvent(&event);
-    });
+    SDL2Video::instance()->refresh([&opaque](int milliseconds_delay) { scheduleRefreshVideo(milliseconds_delay); });
     return 0;
 }
 
