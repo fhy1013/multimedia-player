@@ -15,6 +15,15 @@ extern "C" {
 }
 #endif
 
+/* no AV sync correction is done if below the minimum AV sync threshold */
+#define AV_SYNC_THRESHOLD_MIN 0.04
+/* AV sync correction is done if above the maximum AV sync threshold */
+#define AV_SYNC_THRESHOLD_MAX 0.1
+/* If a frame duration is longer than this, it will not be duplicated to compensate AV sync */
+#define AV_SYNC_FRAMEDUP_THRESHOLD 0.1
+/* no AV correction is done if too big error */
+#define AV_NOSYNC_THRESHOLD 10.0
+
 SDL2Audio::SDL2Audio()
     : audio_buf_(nullptr), audio_buf_size_(0), audio_buf_index_(0), audio_callback_time_(0), core_media_(nullptr) {
     LOG(INFO) << "SDL2Audio() ";
@@ -61,10 +70,10 @@ void SDL2Audio::refresh(void *udata, Uint8 *stream, int len) {
         if (audio_buf_index_ >= audio_buf_size_) {
             if (core_media_->status() == PAUSE)
                 audio_size = -1;
-            else
+            else {
                 // get audio frame form audio frame queue
                 audio_size = getPcmFromAudioFrameQueue();
-            // audio_size = getPcmFromFile();
+            }
             if (audio_size < 0) {
                 audio_buf_ = new uint8_t[SDL_AUDIO_BUFFER_SIZE];
                 memset(audio_buf_, 0x00, SDL_AUDIO_BUFFER_SIZE);
@@ -90,6 +99,8 @@ void SDL2Audio::refresh(void *udata, Uint8 *stream, int len) {
             audio_buf_ = nullptr;
         }
     }
+    core_media_->setAudioPts(clock_.pts);
+    LOG(INFO) << "audio refresh frames pts: " << clock_.pts << ", duration: " << clock_.duration;
 }
 
 int SDL2Audio::getPcmFromAudioFrameQueue() {
@@ -102,82 +113,60 @@ int SDL2Audio::getPcmFromAudioFrameQueue() {
     af = core_media_->audioFrameQueue()->peekReadable();
     if (!af) return -1;
     core_media_->audioFrameQueue()->frameNext();
+    // LOG(INFO) << "audio refresh frames pts: " << af->pts << ", duration: " << af->duration;
 
     auto swresample_proxy = SwresampleProxy::instance();
-    auto nb_samples = swresample_proxy->avRescaleRnd(af->frame);
-    auto sambuf_size = swresample_proxy->avSamplesGetBufferSize(nb_samples);
-
+    auto out_samples = swresample_proxy->swrGetOutSamples(af->frame->nb_samples);
+    auto sambuf_size = swresample_proxy->avSamplesGetBufferSize(out_samples);
     auto out_swr_context = swresample_proxy->outSwrContextParam();
 
     if (sambuf_size <= 0) {
-        LOG(ERROR) << "avSamplesGetBufferSize() <= 0, nb_samples: " << nb_samples;
+        // LOG(ERROR) << "avSamplesGetBufferSize() <= 0, nb_samples: " << nb_samples;
+        LOG(ERROR) << "avSamplesGetBufferSize() <= 0, out_samples: " << out_samples;
         return -1;
     }
+
+    // new outbuffer
+    audio_buf_ = new uint8_t[sambuf_size];
+    memset(audio_buf_, 0x00, sambuf_size);
+
     // new convert buffer
     std::shared_ptr<AudioFrameBuffer> audio_buf =
         std::make_shared<AudioFrameBuffer>(out_swr_context.channel, sambuf_size, out_swr_context.format);
-
-    auto nb_convert = swresample_proxy->resample(audio_buf.get()->getBuffer(), nb_samples,
+    auto nb_convert = swresample_proxy->resample(audio_buf.get()->getBuffer(), out_samples,
                                                  (const uint8_t **)af->frame->data, af->frame->nb_samples);
     if (nb_convert < 0) {
         LOG(ERROR) << "swr_convert fialed";
+        delete[] audio_buf_;
+        audio_buf_ = nullptr;
         return -1;
     }
-    // auto nb_convert = 0;
-    // while (nb_convert > 0) {
-    //     nb_convert += nb_convert;
-    //     auto buffer_size = swresample_proxy->avSamplesGetBufferSize(nb_convert);
-    //     nb_convert = swresample_proxy->resample(&audio_buf_, nb_samples, nullptr, 0);
-    //     if (nb_convert < 0) {
-    //         LOG(ERROR) << "swr_convert fialed";
-    //         return -1;
-    //     }
-    // }
-    auto convert_buffer_size = swresample_proxy->avSamplesGetBufferSize(nb_convert);
-    if (convert_buffer_size <= 0) {
-        LOG(ERROR) << "avSamplesGetBufferSize() <= 0, nb_convert: " << nb_convert;
-        return -1;
-    }
-    audio_buf_ = new uint8_t[convert_buffer_size];
-    memset(audio_buf_, 0x00, convert_buffer_size);
-    if (av_sample_fmt_is_planar(out_swr_context.format))
-        copyPlanar(audio_buf_, audio_buf.get()->getBuffer(), out_swr_context.format, nb_convert,
-                   out_swr_context.channel);
-    else
-        copyPacked(audio_buf_, audio_buf.get()->getBuffer(), out_swr_context.format, nb_convert,
-                   out_swr_context.channel);
-    // writePcm(audio_buf_, convert_buffer_size);
+    auto index = 0;
+    do {
+        if (av_sample_fmt_is_planar(out_swr_context.format))
+            index += copyPlanar(audio_buf_ + index, audio_buf.get()->getBuffer(), out_swr_context.format, nb_convert,
+                                out_swr_context.channel);
+        else
+            index += copyPacked(audio_buf_ + index, audio_buf.get()->getBuffer(), out_swr_context.format, nb_convert,
+                                out_swr_context.channel);
+        nb_convert = swresample_proxy->resample(audio_buf.get()->getBuffer(), out_samples, nullptr, 0);
+        if (nb_convert < 0) {
+            LOG(ERROR) << "swr_convert fialed";
+            delete[] audio_buf_;
+            audio_buf_ = nullptr;
+            return -1;
+        }
+    } while (nb_convert > 0);
 
-    return convert_buffer_size;
+    clock_.pts = af->pts;
+    clock_.duration = af->duration;
+    clock_.samples = index;
+
+    return index;
 }
 
-// int SDL2Audio::getPcmFromFile() {
-//     std::ifstream in("./out.pcm", std::ios::in | std::ios::binary);
-//     if (!in.is_open()) {
-//         LOG(ERROR) << "open pcm file failed";
-//         return -1;
-//     }
-//     static uint64_t index = 0;
-//     static bool end = false;
-//     if (end) return -1;
-//     in.seekg(index);
-//     auto len = 1024;
-//     audio_buf_ = new uint8_t[len];
-//     memset(audio_buf_, 0x00, len);
-//     in.read(reinterpret_cast<char *>(audio_buf_), len);
-//     if (in.bad()) {
-//         end = true;
-//         delete[] audio_buf_;
-//         return -1;
-//     }
-//     auto read_size = in.gcount();
-//     index = in.tellg();
-//     in.close();
-//     return read_size;
-// }
-
 // Planar: L L L L R R R R
-void SDL2Audio::copyPlanar(uint8_t *des, uint8_t **src, AVSampleFormat format, int64_t nb_samples, int channels) {
+uint64_t SDL2Audio::copyPlanar(uint8_t *des, uint8_t **src, AVSampleFormat format, int64_t nb_samples, int channels) {
     auto per_sample_size = av_get_bytes_per_sample(format);
     size_t offset = 0;
     for (auto i = 0; i < nb_samples; ++i)
@@ -186,18 +175,15 @@ void SDL2Audio::copyPlanar(uint8_t *des, uint8_t **src, AVSampleFormat format, i
             memcpy(des + offset, reinterpret_cast<char *>(src[channel] + per_sample_size * i), per_sample_size);
             offset += per_sample_size;
         }
+    return per_sample_size * nb_samples * channels;
 }
 
 // Packed: L R L R L R L R
-void SDL2Audio::copyPacked(uint8_t *des, uint8_t **src, AVSampleFormat format, int64_t nb_samples, int channels) {
+uint64_t SDL2Audio::copyPacked(uint8_t *des, uint8_t **src, AVSampleFormat format, int64_t nb_samples, int channels) {
     auto per_sample_size = av_get_bytes_per_sample(format);
     memcpy(des, reinterpret_cast<char *>(src[0]), per_sample_size * nb_samples * channels);
+    return per_sample_size * nb_samples * channels;
 }
-
-// void SDL2Audio::writePcm(uint8_t *data, size_t len) {
-//     std::ofstream out("./out1.pcm", std::ios::binary | std::ios::app);
-//     out.write(reinterpret_cast<char *>(data), len);
-// }
 
 SDL2Video::SDL2Video()
     : window_(nullptr),
@@ -257,28 +243,37 @@ bool SDL2Video::refresh(VideoRefreshCallbacks cb) {
     }
     Frame *af = nullptr;
     if (getFrame(&af)) {
-        // LOG(INFO) << "pts " << af->pts << ", delay " << af->duration;
-        cb(af->duration * 1000);  // seconds to milliseconds
+        // cb(af->duration * 1000);  // seconds to milliseconds
+        // render(af);
+        // core_media_->videoFrameQueue()->frameNext();
 
-        auto height = SwscaleProxy::instance()->scaled((uint8_t const *const *)af->frame, af->frame->linesize, 0,
-                                                       af->height, frame_->data, frame_->linesize);
-        // SDL_UpdateYUVTexture(texture_, nullptr, af->frame->data[0], af->frame->linesize[0], af->frame->data[1],
-        //                      af->frame->linesize[1], af->frame->data[2], af->frame->linesize[2]);
-        SDL_UpdateYUVTexture(texture_, nullptr, frame_->data[0], frame_->linesize[0], frame_->data[1],
-                             frame_->linesize[1], frame_->data[2], frame_->linesize[2]);
-        rect_.x = 0;
-        rect_.y = 0;
-        // rect_.w = af->width;
-        // rect_.h = af->height;
-        rect_.w = frame_->linesize[0];
-        rect_.h = frame_->linesize[1];
+        auto delay = af->pts - last_pts_;
+        if (delay <= 0 || delay >= 1.0) delay = last_delay_;
+        // auto delay = computeTargetDelay(delay, af);
 
-        SDL_RenderClear(render_);
-        SDL_RenderCopy(render_, texture_, nullptr, &rect_);
-        SDL_RenderPresent(render_);
+        auto diff = af->pts - core_media_->audioPts();
+        auto sync_threshold = FFMAX(AV_SYNC_THRESHOLD_MIN, FFMIN(AV_SYNC_THRESHOLD_MAX, delay));
+        if (!isnan(diff) && fabs(diff) < AV_NOSYNC_THRESHOLD) {
+            if (diff <= -sync_threshold)
+                delay = FFMAX(0, delay + diff);
+            else if (diff >= sync_threshold && delay > AV_SYNC_FRAMEDUP_THRESHOLD)
+                delay = delay + diff;
+            else if (diff >= sync_threshold)
+                delay = 2 * delay;
+        }
+        LOG(INFO) << "video refresh delay: " << delay * 1000 + 1;
+        cb(delay * 1000 + 1);
 
-        // static size_t count = 0;
-        // LOG(INFO) << "video refresh frames: " << ++count;
+        last_delay_ = delay;
+
+        if (diff <= 0.0) {
+            render(af);
+            last_pts_ = af->pts;
+            core_media_->videoFrameQueue()->frameNext();
+        } else {
+            LOG(INFO) << "video refresh delay: " << delay << ", diff: " << diff;
+        }
+
     } else {
         cb(1);
         return false;
@@ -307,8 +302,51 @@ bool SDL2Video::getFrame(Frame **frame) {
     if (core_media_->videoFrameQueue()->frameRemaining() == 0) return false;
     *frame = core_media_->videoFrameQueue()->peekReadable();
     if (!*frame) return false;
-    core_media_->videoFrameQueue()->frameNext();
+    // core_media_->videoFrameQueue()->frameNext();
     return true;
+}
+
+void SDL2Video::render(Frame *af) {
+    LOG(INFO) << "video refresh pts " << af->pts << ", duration " << af->duration;
+
+    auto height = SwscaleProxy::instance()->scaled((uint8_t const *const *)af->frame, af->frame->linesize, 0,
+                                                   af->height, frame_->data, frame_->linesize);
+
+    SDL_UpdateYUVTexture(texture_, nullptr, frame_->data[0], frame_->linesize[0], frame_->data[1], frame_->linesize[1],
+                         frame_->data[2], frame_->linesize[2]);
+    rect_.x = 0;
+    rect_.y = 0;
+    // rect_.w = af->width;
+    // rect_.h = af->height;
+    rect_.w = frame_->linesize[0];
+    rect_.h = frame_->linesize[1];
+
+    SDL_RenderClear(render_);
+    SDL_RenderCopy(render_, texture_, nullptr, &rect_);
+    SDL_RenderPresent(render_);
+
+    // static size_t count = 0;
+    // LOG(INFO) << "video refresh frames: " << ++count;
+}
+
+double SDL2Video::computeTargetDelay(double delay, Frame *af) {
+    /* if video is slave, we try to correct big delays by
+       duplicating or deleting a frame */
+    auto diff = af->pts - core_media_->audioPts();
+    /* skip or repeat frame. We take into account the
+       delay to compute the threshold. I still don't know
+       if it is the best guess */
+    auto sync_threshold = FFMAX(AV_SYNC_THRESHOLD_MIN, FFMIN(AV_SYNC_THRESHOLD_MAX, delay));
+    if (!isnan(diff) && fabs(diff) < AV_NOSYNC_THRESHOLD) {
+        if (diff <= -sync_threshold)
+            delay = FFMAX(0, delay + diff);
+        else if (diff >= sync_threshold && delay > AV_SYNC_FRAMEDUP_THRESHOLD)
+            delay = delay + diff;
+        else if (diff >= sync_threshold)
+            delay = 2 * delay;
+    }
+
+    return delay;
 }
 
 SDL2Proxy::SDL2Proxy() {

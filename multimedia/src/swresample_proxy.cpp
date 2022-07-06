@@ -39,8 +39,8 @@ int SwresampleProxy::resample(uint8_t** out, int out_count, const uint8_t** in, 
 }
 
 int64_t SwresampleProxy::avRescaleRnd(AVFrame* frame) {
-    return av_rescale_rnd(swr_get_delay(swr_context_, frame->sample_rate) + frame->nb_samples, out_.sample_rate,
-                          in_.sample_rate, AV_ROUND_ZERO);
+    auto ret = swr_get_delay(swr_context_, frame->sample_rate);
+    return av_rescale_rnd(ret + frame->nb_samples, out_.sample_rate, in_.sample_rate, AV_ROUND_ZERO);
 }
 
 int SwresampleProxy::avSamplesGetBufferSize(int64_t nb_samples) {

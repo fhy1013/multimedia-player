@@ -63,6 +63,8 @@ bool CoreDecoderAudio::pushFrame(AVFrame* frame) {
     if (!af) return false;
 
     AVRational tb = {1, frame->sample_rate};
+    if (frame->pts != AV_NOPTS_VALUE) frame->pts = av_rescale_q(frame->pts, stream_->time_base, tb);
+
     af->pts = (frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb);
     af->pos = frame->pkt_pos;
     af->duration = av_q2d({frame->nb_samples, frame->sample_rate});

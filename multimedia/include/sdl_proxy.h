@@ -17,6 +17,12 @@ extern "C" {
 
 class CoreMedia;
 
+typedef struct AudioClock {
+    double pts;
+    double duration;
+    int samples;
+};
+
 class SDL2Audio {
 public:
     static SDL2Audio *instance();
@@ -34,9 +40,9 @@ private:
 
     // int getPcmFromFile();
 
-    void copyPlanar(uint8_t *des, uint8_t **src, AVSampleFormat format, int64_t nb_samples, int channels);
+    uint64_t copyPlanar(uint8_t *des, uint8_t **src, AVSampleFormat format, int64_t nb_samples, int channels);
 
-    void copyPacked(uint8_t *des, uint8_t **src, AVSampleFormat format, int64_t nb_samples, int channels);
+    uint64_t copyPacked(uint8_t *des, uint8_t **src, AVSampleFormat format, int64_t nb_samples, int channels);
 
     // void writePcm(uint8_t *data, size_t len);
 
@@ -46,6 +52,7 @@ private:
     uint8_t *audio_buf_;
     unsigned int audio_buf_size_;
     int audio_buf_index_;
+    AudioClock clock_;
 
     CoreMedia *core_media_;
     int64_t audio_callback_time_;
@@ -67,6 +74,8 @@ public:
 
 private:
     bool getFrame(Frame **frame);
+    void render(Frame *af);
+    double computeTargetDelay(double delay, Frame *af);
 
 private:
     SDL_Window *window_;
@@ -76,12 +85,10 @@ private:
 
     CoreMedia *core_media_;
     AVFrame *frame_;
-};
 
-class SDL2Event {
-public:
-private:
-    SDL_Event event_;
+    double next_cb_timer_;  // 下一次回调时间
+    double last_pts_;       // 上一帧pts
+    double last_delay_;     // 上一帧delay时间
 };
 
 class SDL2Proxy {

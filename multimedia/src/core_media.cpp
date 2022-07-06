@@ -17,6 +17,8 @@ CoreMedia::CoreMedia()
       thread_audio_(nullptr),
       thread_demux_(nullptr),
       status_(STOP),
+      video_clock_(0),
+      audio_clock_(0),
       sdl_proxy_(nullptr) {
     LOG(INFO) << "CoreMedia() ";
     init();
@@ -132,8 +134,7 @@ bool CoreMedia::pause() {
     else if (status() == START)
         status_ = PAUSE;
     // LOG(INFO) << "pause";
-    // videoFrameQueue()->setStatus(status());
-    // audioFrameQueue()->setStatus(status());
+
 
     return true;
 }
@@ -231,7 +232,6 @@ bool CoreMedia::initVideo() {
             [this](VideoParams in) {
                 VideoParams out{1280, 720, in.format};
                 if (!SwscaleProxy::instance()->init(in, out)) return false;
-                // sdl_proxy_->initVideo(in.width, in.height, this);
                 sdl_proxy_->initVideo(out, this);
                 sdl_proxy_->scheduleRefreshVideo(1);
             },

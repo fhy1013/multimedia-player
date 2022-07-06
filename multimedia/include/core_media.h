@@ -36,6 +36,11 @@ public:
     std::shared_ptr<FrameQueue>& videoFrameQueue();
     std::shared_ptr<FrameQueue>& audioFrameQueue();
 
+    void setVideoPts(const double pts) { video_clock_ = pts; }
+    double videoPts() const { return video_clock_; }
+    void setAudioPts(const double pts) { audio_clock_ = pts; }
+    double audioPts() const { return audio_clock_; }
+
 private:
     bool initVideo();
     bool initAudio();
@@ -66,6 +71,9 @@ private:
 
     std::atomic<MediaStatus> status_;
     SDL_Event event_;
+
+    std::atomic<double> video_clock_;
+    std::atomic<double> audio_clock_;
 
 public:
     std::shared_ptr<SDL2Proxy> sdl_proxy_;

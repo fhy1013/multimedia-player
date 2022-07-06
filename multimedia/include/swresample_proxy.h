@@ -23,6 +23,8 @@ public:
 
     AudioParams outSwrContextParam() const { return out_; };
 
+    int swrGetOutSamples(int in_samples) { return swr_get_out_samples(swr_context_, in_samples); }
+
 private:
     SwresampleProxy();
     ~SwresampleProxy();
