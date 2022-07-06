@@ -15,6 +15,8 @@ extern "C" {
 #define MAX_AUDIO_FRAME_SIZE 192000
 #define SDL_AUDIO_BUFFER_SIZE 512
 
+// #define FFMPEG_SYUNC
+
 class CoreMedia;
 
 typedef struct AudioClock {
@@ -85,10 +87,11 @@ private:
 
     CoreMedia *core_media_;
     AVFrame *frame_;
-
+#ifdef FFMPEG_SYUNC
     double next_cb_timer_;  // 下一次回调时间
     double last_pts_;       // 上一帧pts
     double last_delay_;     // 上一帧delay时间
+#endif
 };
 
 class SDL2Proxy {

@@ -243,10 +243,7 @@ bool SDL2Video::refresh(VideoRefreshCallbacks cb) {
     }
     Frame *af = nullptr;
     if (getFrame(&af)) {
-        // cb(af->duration * 1000);  // seconds to milliseconds
-        // render(af);
-        // core_media_->videoFrameQueue()->frameNext();
-
+#ifdef FFMPEG_SYUNC
         auto delay = af->pts - last_pts_;
         if (delay <= 0 || delay >= 1.0) delay = last_delay_;
         // auto delay = computeTargetDelay(delay, af);
@@ -273,7 +270,16 @@ bool SDL2Video::refresh(VideoRefreshCallbacks cb) {
         } else {
             LOG(INFO) << "video refresh delay: " << delay << ", diff: " << diff;
         }
-
+#else
+        auto diff = af->pts - core_media_->audioPts();
+        if (diff > 0.001)
+            cb(diff * 1000);
+        else {
+            cb(1);
+            if (diff > -1.0) render(af);
+            core_media_->videoFrameQueue()->frameNext();
+        }
+#endif
     } else {
         cb(1);
         return false;
