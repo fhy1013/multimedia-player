@@ -1,6 +1,6 @@
 ﻿cmake_minimum_required (VERSION 3.8)
 
-project ("multimedia_test" VERSION ${PROJECT_VERSION})
+project ("L7Player_test" VERSION ${PROJECT_VERSION})
 
 include_directories(
 	${CMAKE_SOURCE_DIR}/inc

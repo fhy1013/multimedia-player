@@ -9,10 +9,10 @@ Extract it to /L7Player/external_dependencies/ directory and rename it to ffmpeg
 
 The dir is:
 ```
-multimedia-player
+L7Player
 ----bin
 ----external_dependencies
---------ffmpeg # download and extract by youself
+--------ffmpeg # download and extract by yourself
 --------glad
 --------glfw
 --------glog
@@ -23,5 +23,5 @@ multimedia-player
 ----multimedia
 ----resource
 --------media
-------------test.mp4 # prepare by youself
+------------test.mp4 # prepare by yourself
 ```

@@ -4,7 +4,7 @@
 #undef main
 int main(int argc, char **argv) {
     InitLog(argv[0]);
-    LOG(INFO) << "multimedia_player init";
+    LOG(INFO) << "L7Player init";
     // std::string media_file = "../../resource/media/test.mp4";
     std::string media_file = "../../resource/media/nature.mkv";
     {

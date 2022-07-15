@@ -30,7 +30,6 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
 
 add_compile_options(-Wall)
 
-
 # set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -g -O0")
 # set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -O0")
 
@@ -80,7 +79,7 @@ endif()
 enable_testing()
 
 set(PROJECT_VERSION 1.0.0.0)
-project("multimedia_player" VERSION ${PROJECT_VERSION})
+project("L7Player" VERSION ${PROJECT_VERSION})
 
 
 # include subdirectory

@@ -215,8 +215,8 @@ bool SDL2Video::init(VideoParams video_params, CoreMedia *core_media) {
         return false;
     }
 
-    window_ = SDL_CreateWindow("Multimedia-Player", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-                               video_params.width, video_params.height, SDL_WINDOW_SHOWN);
+    window_ = SDL_CreateWindow("L7Player", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, video_params.width,
+                               video_params.height, SDL_WINDOW_SHOWN);
     if (!window_) {
         LOG(ERROR) << "failed to create window by sdl";
         return false;
