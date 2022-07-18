@@ -17,8 +17,6 @@ CoreMedia::CoreMedia()
       thread_audio_(nullptr),
       thread_demux_(nullptr),
       status_(STOP),
-      video_clock_(0),
-      audio_clock_(0),
       sdl_proxy_(nullptr) {
     LOG(INFO) << "CoreMedia() ";
     init();
@@ -40,6 +38,8 @@ bool CoreMedia::init() {
     audio_stream_index_ = -1;
     tbn_ = {0, 0};
     media_time_ = 0;
+
+    initClock();
 
     video_ = new CoreDecoderVideo();
     audio_ = new CoreDecoderAudio();
@@ -134,7 +134,6 @@ bool CoreMedia::pause() {
     else if (status() == START)
         status_ = PAUSE;
     // LOG(INFO) << "pause";
-
 
     return true;
 }

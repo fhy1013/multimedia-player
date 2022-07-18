@@ -7,6 +7,7 @@
 #include "core_decoder_video.h"
 #include "sdl_proxy.h"
 #include "core_frame_queue.h"
+#include "clock.h"
 
 #include <memory>
 #include <functional>
@@ -36,10 +37,35 @@ public:
     std::shared_ptr<FrameQueue>& videoFrameQueue();
     std::shared_ptr<FrameQueue>& audioFrameQueue();
 
-    void setVideoPts(const double pts) { video_clock_ = pts; }
-    double videoPts() const { return video_clock_; }
-    void setAudioPts(const double pts) { audio_clock_ = pts; }
-    double audioPts() const { return audio_clock_; }
+    void initClock() {
+        video_clock_.pts = 0.0;
+        video_clock_.pts_drift = 0.0;
+        video_clock_.last_updated = 0.0;
+
+        audio_clock_.pts = 0.0;
+        audio_clock_.pts_drift = 0.0;
+        audio_clock_.last_updated = 0.0;
+    }
+    void setVideoPts(const double pts) {
+        double now_time = av_gettime_relative() / 1000000.0;
+        video_clock_.pts = pts;
+        video_clock_.pts_drift = pts - now_time;
+        video_clock_.last_updated = now_time;
+    }
+    double videoPts() const {
+        double now_time = av_gettime_relative() / 1000000.0;
+        return video_clock_.pts_drift + now_time;
+    }
+    void setAudioPts(const double pts) {
+        double now_time = av_gettime_relative() / 1000000.0;
+        audio_clock_.pts = pts;
+        audio_clock_.pts_drift = pts - now_time;
+        audio_clock_.last_updated = now_time;
+    }
+    double audioPts() const {
+        double now_time = av_gettime_relative() / 1000000.0;
+        return audio_clock_.pts_drift + now_time;
+    }
 
 private:
     bool initVideo();
@@ -72,8 +98,8 @@ private:
     std::atomic<MediaStatus> status_;
     SDL_Event event_;
 
-    std::atomic<double> video_clock_;
-    std::atomic<double> audio_clock_;
+    Clock video_clock_;
+    Clock audio_clock_;
 
 public:
     std::shared_ptr<SDL2Proxy> sdl_proxy_;
