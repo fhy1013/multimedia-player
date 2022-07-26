@@ -15,14 +15,21 @@ extern "C" {
 #define MAX_AUDIO_FRAME_SIZE 192000
 #define SDL_AUDIO_BUFFER_SIZE 512
 
-// #define FFMPEG_SYUNC
+// #define FFMPEG_SYNC
 
 class CoreMedia;
+
+typedef struct AudioClockParams {
+    // int channels;       // current number of channels
+    int bytes_per_sec;  // bytes per second
+    // int samples;        // current frame samples
+    int index;  // current frame read index
+};
 
 typedef struct AudioClock {
     double pts;
     double duration;
-    int samples;
+    AudioClockParams params;
 };
 
 class SDL2Audio {

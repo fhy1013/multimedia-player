@@ -40,7 +40,10 @@ bool SDL2Audio::init(SDL_AudioSpec *spec, CoreMedia *core_media) {
     spec_ = *spec;
     core_media_ = core_media;
 
-    // The second paramter of SDL_OpenAudio must bo nullptr.
+    // clock_ = {0.0, 0.0, {2, 0, 0, 0}};
+    clock_ = {0.0, 0.0, {2, 0}};
+
+    // The second parameter of SDL_OpenAudio must bo nullptr.
     // if it is an object of SDL_AudioSpec audio playback has no sound.
     if (SDL_OpenAudio(&spec_, nullptr) < 0) {
         LOG(ERROR) << "failed to open audio device: " << SDL_GetError();
@@ -74,6 +77,7 @@ void SDL2Audio::refresh(void *udata, Uint8 *stream, int len) {
                 // get audio frame form audio frame queue
                 audio_size = getPcmFromAudioFrameQueue();
             }
+
             if (audio_size < 0) {
                 audio_buf_ = new uint8_t[SDL_AUDIO_BUFFER_SIZE];
                 memset(audio_buf_, 0x00, SDL_AUDIO_BUFFER_SIZE);
@@ -99,8 +103,10 @@ void SDL2Audio::refresh(void *udata, Uint8 *stream, int len) {
             audio_buf_ = nullptr;
         }
     }
-    core_media_->setAudioPts(clock_.pts);
-    LOG(INFO) << "audio refresh frames pts: " << clock_.pts << ", duration: " << clock_.duration;
+    if (clock_.params.bytes_per_sec > 0)
+        core_media_->setAudioPts(clock_.pts + clock_.duration - clock_.params.index / clock_.params.bytes_per_sec);
+
+    LOG(INFO) << "audio refresh frames pts: " << core_media_->audioPts();
 }
 
 int SDL2Audio::getPcmFromAudioFrameQueue() {
@@ -117,32 +123,34 @@ int SDL2Audio::getPcmFromAudioFrameQueue() {
 
     auto swresample_proxy = SwresampleProxy::instance();
     auto out_samples = swresample_proxy->swrGetOutSamples(af->frame->nb_samples);
-    auto sambuf_size = swresample_proxy->avSamplesGetBufferSize(out_samples);
+    auto sample_buff_size = swresample_proxy->avSamplesGetBufferSize(out_samples);
     auto out_swr_context = swresample_proxy->outSwrContextParam();
 
-    if (sambuf_size <= 0) {
+    if (sample_buff_size <= 0) {
         // LOG(ERROR) << "avSamplesGetBufferSize() <= 0, nb_samples: " << nb_samples;
         LOG(ERROR) << "avSamplesGetBufferSize() <= 0, out_samples: " << out_samples;
         return -1;
     }
 
-    // new outbuffer
-    audio_buf_ = new uint8_t[sambuf_size];
-    memset(audio_buf_, 0x00, sambuf_size);
+    // new out buffer
+    audio_buf_ = new uint8_t[sample_buff_size];
+    memset(audio_buf_, 0x00, sample_buff_size);
 
     // new convert buffer
     std::shared_ptr<AudioFrameBuffer> audio_buf =
-        std::make_shared<AudioFrameBuffer>(out_swr_context.channel, sambuf_size, out_swr_context.format);
+        std::make_shared<AudioFrameBuffer>(out_swr_context.channel, sample_buff_size, out_swr_context.format);
     auto nb_convert = swresample_proxy->resample(audio_buf.get()->getBuffer(), out_samples,
                                                  (const uint8_t **)af->frame->data, af->frame->nb_samples);
     if (nb_convert < 0) {
-        LOG(ERROR) << "swr_convert fialed";
+        LOG(ERROR) << "swr_convert failed";
         delete[] audio_buf_;
         audio_buf_ = nullptr;
         return -1;
     }
     auto index = 0;
+    auto sample_sum = 0;
     do {
+        sample_sum += nb_convert;
         if (av_sample_fmt_is_planar(out_swr_context.format))
             index += copyPlanar(audio_buf_ + index, audio_buf.get()->getBuffer(), out_swr_context.format, nb_convert,
                                 out_swr_context.channel);
@@ -151,16 +159,18 @@ int SDL2Audio::getPcmFromAudioFrameQueue() {
                                 out_swr_context.channel);
         nb_convert = swresample_proxy->resample(audio_buf.get()->getBuffer(), out_samples, nullptr, 0);
         if (nb_convert < 0) {
-            LOG(ERROR) << "swr_convert fialed";
+            LOG(ERROR) << "swr_convert failed";
             delete[] audio_buf_;
             audio_buf_ = nullptr;
             return -1;
         }
     } while (nb_convert > 0);
 
-    clock_.pts = af->pts;
-    clock_.duration = af->duration;
-    clock_.samples = index;
+    if (sample_sum > 0) {
+        clock_.pts = af->pts;
+        clock_.duration = af->duration;
+        clock_.params.bytes_per_sec = av_get_bytes_per_sample(out_swr_context.format);
+    }
 
     return index;
 }
@@ -243,7 +253,7 @@ bool SDL2Video::refresh(VideoRefreshCallbacks cb) {
     }
     Frame *af = nullptr;
     if (getFrame(&af)) {
-#ifdef FFMPEG_SYUNC
+#ifdef FFMPEG_SYNC
         auto delay = af->pts - last_pts_;
         if (delay <= 0 || delay >= 1.0) delay = last_delay_;
         // auto delay = computeTargetDelay(delay, af);
