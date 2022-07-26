@@ -72,5 +72,8 @@
         "xlocmon": "cpp",
         "xloctime": "cpp"
     },
-    "files.autoGuessEncoding": true
+    "files.autoGuessEncoding": true,
+    "editor.formatOnPaste": true,
+    "editor.formatOnSave": true,
+    "editor.formatOnType": true
 }
