@@ -43,6 +43,9 @@ bool SDL2Audio::init(SDL_AudioSpec *spec, CoreMedia *core_media) {
     // clock_ = {0.0, 0.0, {2, 0, 0, 0}};
     clock_ = {0.0, 0.0, {2, 0}};
 
+    audio_volume_ = SDL_MIX_MAXVOLUME;
+    muted_ = false;
+
     // The second parameter of SDL_OpenAudio must bo nullptr.
     // if it is an object of SDL_AudioSpec audio playback has no sound.
     if (SDL_OpenAudio(&spec_, nullptr) < 0) {
@@ -91,7 +94,10 @@ void SDL2Audio::refresh(void *udata, Uint8 *stream, int len) {
         }
         len1 = audio_buf_size_ - audio_buf_index_;
         if (len1 > len) len1 = len;
-        SDL_MixAudio(stream, (uint8_t *)audio_buf_ + audio_buf_index_, len1, SDL_MIX_MAXVOLUME);
+        if (!muted_)
+            SDL_MixAudio(stream, (uint8_t *)audio_buf_ + audio_buf_index_, len1, audio_volume_);
+        else
+            SDL_MixAudio(stream, (uint8_t *)audio_buf_ + audio_buf_index_, len1, 0);
 
         len -= len1;
         stream += len1;
@@ -108,6 +114,21 @@ void SDL2Audio::refresh(void *udata, Uint8 *stream, int len) {
 
     LOG(INFO) << "audio refresh frames pts: " << core_media_->audioPts();
 }
+
+void SDL2Audio::setAudioVolume(const int audio_volume) {
+    if (audio_volume < 0)
+        audio_volume_ = 0;
+    else if (audio_volume > 128)
+        audio_volume_ = 128;
+    else
+        audio_volume_ = audio_volume;
+}
+
+int SDL2Audio::audioVolume() const { return audio_volume_; }
+
+void SDL2Audio::setMuted() { muted_ = !muted_; }
+
+bool SDL2Audio::muted() const { return muted_; }
 
 int SDL2Audio::getPcmFromAudioFrameQueue() {
     Frame *af = nullptr;
@@ -402,3 +423,25 @@ Uint32 SDL2Proxy::refreshVideo(Uint32 interval, void *opaque) {
 }
 
 void SDL2Proxy::scheduleRefreshVideo(int millisecond_time) { SDL_AddTimer(millisecond_time, refreshVideo, nullptr); }
+
+int SDL2Proxy::audioVolumeUp() {
+    auto volume = SDL2Audio::instance()->audioVolume();
+    volume += 5;
+    SDL2Audio::instance()->setAudioVolume(volume);
+    return SDL2Audio::instance()->audioVolume();
+}
+int SDL2Proxy::audioVolumeDown() {
+    auto volume = SDL2Audio::instance()->audioVolume();
+    volume -= 5;
+    SDL2Audio::instance()->setAudioVolume(volume);
+    return SDL2Audio::instance()->audioVolume();
+}
+
+int SDL2Proxy::audioVolume() const { return SDL2Audio::instance()->audioVolume(); }
+
+bool SDL2Proxy::setMuted() {
+    SDL2Audio::instance()->setMuted();
+    return SDL2Audio::instance()->muted();
+}
+
+bool SDL2Proxy::muted() const { return SDL2Audio::instance()->muted(); }

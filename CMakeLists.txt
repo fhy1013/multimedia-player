@@ -38,7 +38,7 @@ add_compile_options(-Wall)
 
 
 # 预编译宏
-add_definitions(-DFRAME_QUEUE)
+# add_definitions(-DFFMPEG_SYNC)
 
 
 if(${CMAKE_BUILD_TYPE} MATCHES "Debug")

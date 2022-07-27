@@ -41,6 +41,12 @@ public:
 
     void refresh(void *udata, Uint8 *stream, int len);
 
+    void setAudioVolume(const int audio_volume);
+    int audioVolume() const;
+    void setMuted();
+    void cancelMuted();
+    bool muted() const;
+
 private:
     SDL2Audio();
     ~SDL2Audio();
@@ -65,6 +71,9 @@ private:
 
     CoreMedia *core_media_;
     int64_t audio_callback_time_;
+
+    int audio_volume_;
+    bool muted_;
 };
 
 typedef std::function<void(int milliseconds_delay)> VideoRefreshCallbacks;
@@ -94,7 +103,7 @@ private:
 
     CoreMedia *core_media_;
     AVFrame *frame_;
-#ifdef FFMPEG_SYUNC
+#ifdef FFMPEG_SYNC
     double next_cb_timer_;  // 下一次回调时间
     double last_pts_;       // 上一帧pts
     double last_delay_;     // 上一帧delay时间
@@ -115,4 +124,10 @@ public:
     static Uint32 refreshVideo(Uint32 interval, void *opaque);
 
     static void scheduleRefreshVideo(int millisecond_time);
+
+    int audioVolumeUp();
+    int audioVolumeDown();
+    int audioVolume() const;
+    bool setMuted();
+    bool muted() const;
 };

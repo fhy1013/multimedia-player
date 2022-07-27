@@ -199,6 +199,18 @@ void CoreMedia::loop() {
                         quit = true;
                         stop();
                         break;
+                    case SDLK_m: {
+                        auto muted = sdl_proxy_->setMuted();
+                        LOG(INFO) << " audio is muted: " << muted;
+                    } break;
+                    case SDLK_UP: {
+                        auto volume = sdl_proxy_->audioVolumeUp();
+                        LOG(INFO) << " audio volume: " << volume;
+                    } break;
+                    case SDLK_DOWN: {
+                        auto volume = sdl_proxy_->audioVolumeDown();
+                        LOG(INFO) << " audio volume: " << volume;
+                    } break;
                     default:
                         break;
                 }
