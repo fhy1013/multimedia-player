@@ -53,11 +53,13 @@ public:
 
     int64_t lastPos();
 
-    void frameUnref(Frame *vp) { av_frame_unref(vp->frame); }
+    // void frameUnref(Frame *vp) { av_frame_unref(vp->frame); }
 
     void setStatus(MediaStatus status) { status_ = status; }
 
     void notify() { cv_.notify_all(); }
+
+    void clear();
 
 protected:
     Frame queue_[FRAME_QUEUE_SIZE];

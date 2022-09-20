@@ -41,9 +41,7 @@ void CoreThreadAudio::audioDecode() {
             continue;
         }
 
-        if (!core_media_->audio_->decode(packet,
-                                         std::bind(&CoreThreadAudio::frameCallback, this, std::placeholders::_1)))
-            break;
+        core_media_->audio_->decode(packet, std::bind(&CoreThreadAudio::frameCallback, this, std::placeholders::_1));
     }
     av_packet_free(&packet);
     packets->clear();

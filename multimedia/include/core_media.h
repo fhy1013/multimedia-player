@@ -8,6 +8,7 @@
 #include "sdl_proxy.h"
 #include "core_frame_queue.h"
 #include "clock.h"
+#include "seek.h"
 
 #include <memory>
 #include <functional>
@@ -67,6 +68,9 @@ public:
         return audio_clock_.pts_drift + now_time;
     }
 
+    void initSeek(int seek_flags = AVSEEK_FLAG_BACKWARD);
+    void seek(double timestamp);
+
 private:
     bool initVideo();
     bool initAudio();
@@ -101,6 +105,8 @@ private:
     Clock video_clock_;
     Clock audio_clock_;
 
+    Seek seek_;
+
 public:
     std::shared_ptr<SDL2Proxy> sdl_proxy_;
 
@@ -110,4 +116,6 @@ public:
     friend CoreThreadVideo;
     friend CoreThreadAudio;
     friend CoreThreadDemux;
+    friend SDL2Audio;
+    friend SDL2Video;
 };

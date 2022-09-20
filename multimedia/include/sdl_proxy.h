@@ -1,6 +1,7 @@
 #pragma once
 #include "core_frame_queue.h"
 #include "swscale_proxy.h"
+#include "swresample_proxy.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -13,23 +14,21 @@ extern "C" {
 #endif
 
 #define MAX_AUDIO_FRAME_SIZE 192000
-#define SDL_AUDIO_BUFFER_SIZE 512
-
-// #define FFMPEG_SYNC
+#define SDL_AUDIO_BUFFER_SIZE 1024
 
 class CoreMedia;
 
 typedef struct AudioClockParams {
-    // int channels;       // current number of channels
-    int bytes_per_sec;  // bytes per second
-    // int samples;        // current frame samples
-    int index;  // current frame read index
+    int channels;          // current number of channels
+    int bytes_per_sample;  // bytes per second
+    int sample_rate;       // current frame samples
+    int index;             // current frame read index
 };
 
 typedef struct AudioClock {
     double pts;
-    double duration;
-    AudioClockParams params;
+    // double duration;
+    AudioParams params;
 };
 
 class SDL2Audio {
@@ -61,6 +60,8 @@ private:
 
     // void writePcm(uint8_t *data, size_t len);
 
+    void seek();
+
 private:
     SDL_AudioSpec spec_;
 
@@ -74,6 +75,8 @@ private:
 
     int audio_volume_;
     bool muted_;
+    bool seek_;
+    bool update_audio_clock_;
 };
 
 typedef std::function<void(int milliseconds_delay)> VideoRefreshCallbacks;
@@ -94,6 +97,8 @@ private:
     bool getFrame(Frame **frame);
     void render(Frame *af);
     double computeTargetDelay(double delay, Frame *af);
+    void seek();
+    double vpDuration(Frame *vp, Frame *next_vp);
 
 private:
     SDL_Window *window_;
@@ -103,11 +108,10 @@ private:
 
     CoreMedia *core_media_;
     AVFrame *frame_;
-#ifdef FFMPEG_SYNC
+
     double next_cb_timer_;  // 下一次回调时间
     double last_pts_;       // 上一帧pts
     double last_delay_;     // 上一帧delay时间
-#endif
 };
 
 class SDL2Proxy {

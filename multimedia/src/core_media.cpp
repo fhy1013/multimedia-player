@@ -40,6 +40,7 @@ bool CoreMedia::init() {
     media_time_ = 0;
 
     initClock();
+    initSeek();
 
     video_ = new CoreDecoderVideo();
     audio_ = new CoreDecoderAudio();
@@ -211,6 +212,12 @@ void CoreMedia::loop() {
                         auto volume = sdl_proxy_->audioVolumeDown();
                         LOG(INFO) << " audio volume: " << volume;
                     } break;
+                    case SDLK_LEFT:
+                        seek(audioPts() - 5.0);
+                        break;
+                    case SDLK_RIGHT:
+                        seek(audioPts() + 5.0);
+                        break;
                     default:
                         break;
                 }
@@ -235,6 +242,21 @@ void CoreMedia::loop() {
 
 std::shared_ptr<FrameQueue>& CoreMedia::videoFrameQueue() { return video_frame_queue_; }
 std::shared_ptr<FrameQueue>& CoreMedia::audioFrameQueue() { return audio_frame_queue_; }
+
+void CoreMedia::initSeek(int seek_flags) {
+    seek_.seek_req = false;
+    seek_.seek_flags = seek_flags;
+    seek_.seek_pos = 0;
+}
+
+void CoreMedia::seek(double timestamp) {
+    if (!seek_.seek_req) {
+        // seek_.seek_pos = timestamp / av_q2d(format_context_->streams[video_stream_index_]->time_base);
+        seek_.seek_pos = timestamp * AV_TIME_BASE;
+        LOG(INFO) << " seek timestamp: " << timestamp << ", seek_pos: " << seek_.seek_pos;
+        seek_.seek_req = 7;  // 0000 0111
+    }
+}
 
 bool CoreMedia::initVideo() {
     if (video_stream_index_ >= 0)

@@ -78,3 +78,12 @@ void CoreDecoder::unInit() {
 //     out_.close();
 //     return true;
 // }
+
+bool CoreDecoder::avcodecFlushBuffer(AVPacket* pack) {
+    if (strcmp((char*)pack->data, FLUSH_DATA) == 0) {
+        avcodec_flush_buffers(codec_context_);
+        av_packet_unref(pack);
+        return true;
+    }
+    return false;
+}

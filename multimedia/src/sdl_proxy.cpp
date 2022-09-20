@@ -41,10 +41,12 @@ bool SDL2Audio::init(SDL_AudioSpec *spec, CoreMedia *core_media) {
     core_media_ = core_media;
 
     // clock_ = {0.0, 0.0, {2, 0, 0, 0}};
-    clock_ = {0.0, 0.0, {2, 0}};
+    clock_ = {0.0, {0, AV_SAMPLE_FMT_NONE, 0}};
 
     audio_volume_ = SDL_MIX_MAXVOLUME;
     muted_ = false;
+    seek_ = false;
+    update_audio_clock_ = false;
 
     // The second parameter of SDL_OpenAudio must bo nullptr.
     // if it is an object of SDL_AudioSpec audio playback has no sound.
@@ -77,13 +79,13 @@ void SDL2Audio::refresh(void *udata, Uint8 *stream, int len) {
             if (core_media_->status() == PAUSE)
                 audio_size = -1;
             else {
+                seek();
                 // get audio frame form audio frame queue
                 audio_size = getPcmFromAudioFrameQueue();
             }
 
             if (audio_size < 0) {
-                audio_buf_ = new uint8_t[SDL_AUDIO_BUFFER_SIZE];
-                memset(audio_buf_, 0x00, SDL_AUDIO_BUFFER_SIZE);
+                audio_buf_ = nullptr;
                 audio_buf_size_ = SDL_AUDIO_BUFFER_SIZE;
                 // LOG(WARNING) << "audio refresh get buffer failed, set silence ";
             } else {
@@ -94,10 +96,14 @@ void SDL2Audio::refresh(void *udata, Uint8 *stream, int len) {
         }
         len1 = audio_buf_size_ - audio_buf_index_;
         if (len1 > len) len1 = len;
-        if (!muted_)
-            SDL_MixAudio(stream, (uint8_t *)audio_buf_ + audio_buf_index_, len1, audio_volume_);
-        else
-            SDL_MixAudio(stream, (uint8_t *)audio_buf_ + audio_buf_index_, len1, 0);
+        if (audio_buf_) {
+            if (!muted_)
+                SDL_MixAudio(stream, (uint8_t *)audio_buf_ + audio_buf_index_, len1, audio_volume_);
+            else
+                SDL_MixAudio(stream, (uint8_t *)audio_buf_ + audio_buf_index_, len1, 0);
+        } else {
+            memset(stream, 0, len1);
+        }
 
         len -= len1;
         stream += len1;
@@ -109,8 +115,16 @@ void SDL2Audio::refresh(void *udata, Uint8 *stream, int len) {
             audio_buf_ = nullptr;
         }
     }
-    if (clock_.params.bytes_per_sec > 0)
-        core_media_->setAudioPts(clock_.pts + clock_.duration - clock_.params.index / clock_.params.bytes_per_sec);
+    if (!update_audio_clock_) {
+        if (clock_.params.channel != 0 && clock_.params.format != AV_SAMPLE_FMT_NONE && clock_.params.sample_rate != 0)
+            core_media_->setAudioPts(clock_.pts - (audio_buf_size_ - audio_buf_index_) /
+                                                      (av_get_bytes_per_sample(clock_.params.format) *
+                                                       clock_.params.channel * clock_.params.sample_rate));
+    } else {
+        clock_.pts = (double)core_media_->seek_.seek_pos / AV_TIME_BASE;
+        core_media_->setAudioPts(clock_.pts);
+        update_audio_clock_ = false;
+    }
 
     LOG(INFO) << "audio refresh frames pts: " << core_media_->audioPts();
 }
@@ -133,14 +147,24 @@ bool SDL2Audio::muted() const { return muted_; }
 int SDL2Audio::getPcmFromAudioFrameQueue() {
     Frame *af = nullptr;
 
-    if (core_media_->audioFrameQueue()->frameRemaining() == 0) {
-        // if ((av_gettime_relative() - audio_callback_time_) > )
-        return -1;
+    while (true) {
+        if (core_media_->audioFrameQueue()->frameRemaining() == 0) {
+            // if ((av_gettime_relative() - audio_callback_time_) > )
+            return -1;
+        }
+        af = core_media_->audioFrameQueue()->peekReadable();
+        if (!af) return -1;
+        core_media_->audioFrameQueue()->frameNext();
+        if (seek_) {
+            auto seek_pos = (double)core_media_->seek_.seek_pos / AV_TIME_BASE;
+            if ((af->pts >= seek_pos) && af->pts - seek_pos < 1.0) {
+                seek_ = false;
+                break;
+            }
+        } else
+            break;
     }
-    af = core_media_->audioFrameQueue()->peekReadable();
-    if (!af) return -1;
-    core_media_->audioFrameQueue()->frameNext();
-    // LOG(INFO) << "audio refresh frames pts: " << af->pts << ", duration: " << af->duration;
+    // LOG(INFO) << "get audio frames pts: " << af->pts << ", duration: " << af->duration;
 
     auto swresample_proxy = SwresampleProxy::instance();
     auto out_samples = swresample_proxy->swrGetOutSamples(af->frame->nb_samples);
@@ -188,9 +212,8 @@ int SDL2Audio::getPcmFromAudioFrameQueue() {
     } while (nb_convert > 0);
 
     if (sample_sum > 0) {
-        clock_.pts = af->pts;
-        clock_.duration = af->duration;
-        clock_.params.bytes_per_sec = av_get_bytes_per_sample(out_swr_context.format);
+        clock_.pts = af->pts + sample_sum / out_swr_context.sample_rate;
+        clock_.params = out_swr_context;
     }
 
     return index;
@@ -214,6 +237,16 @@ uint64_t SDL2Audio::copyPacked(uint8_t *des, uint8_t **src, AVSampleFormat forma
     auto per_sample_size = av_get_bytes_per_sample(format);
     memcpy(des, reinterpret_cast<char *>(src[0]), per_sample_size * nb_samples * channels);
     return per_sample_size * nb_samples * channels;
+}
+
+void SDL2Audio::seek() {
+    if (!(core_media_->seek_.seek_req & 0x01) && (core_media_->seek_.seek_req & 0x04)) {
+        LOG(INFO) << "audio frame queue clear";
+        core_media_->audioFrameQueue()->clear();
+        core_media_->seek_.seek_req &= 0xFB;
+        seek_ = true;
+        update_audio_clock_ = true;
+    }
 }
 
 SDL2Video::SDL2Video()
@@ -272,10 +305,18 @@ bool SDL2Video::refresh(VideoRefreshCallbacks cb) {
         cb(1);
         return true;
     }
+
+    seek();
+
     Frame *af = nullptr;
     if (getFrame(&af)) {
-#ifdef FFMPEG_SYNC
         auto delay = af->pts - last_pts_;
+        if (fabs(delay) > 1.0) {
+            // if (true) {
+            cb(1);
+            core_media_->videoFrameQueue()->frameNext();
+            return false;
+        }
         if (delay <= 0 || delay >= 1.0) delay = last_delay_;
         // auto delay = computeTargetDelay(delay, af);
 
@@ -301,16 +342,6 @@ bool SDL2Video::refresh(VideoRefreshCallbacks cb) {
         } else {
             LOG(INFO) << "video refresh delay: " << delay << ", diff: " << diff;
         }
-#else
-        auto diff = af->pts - core_media_->audioPts();
-        if (diff > 0.001)
-            cb(diff * 1000);
-        else {
-            cb(1);
-            if (diff > -1.0) render(af);
-            core_media_->videoFrameQueue()->frameNext();
-        }
-#endif
     } else {
         cb(1);
         return false;
@@ -384,6 +415,23 @@ double SDL2Video::computeTargetDelay(double delay, Frame *af) {
     }
 
     return delay;
+}
+
+void SDL2Video::seek() {
+    if (!(core_media_->seek_.seek_req & 0x01) && (core_media_->seek_.seek_req & 0x02)) {
+        LOG(INFO) << "video frame queue clear";
+        core_media_->videoFrameQueue()->clear();
+        core_media_->seek_.seek_req &= 0xFD;
+        last_pts_ = (double)core_media_->seek_.seek_pos / AV_TIME_BASE;
+    }
+}
+
+double SDL2Video::vpDuration(Frame *vp, Frame *next_vp) {
+    double duration = next_vp->pts - vp->pts;
+    if (isnan(duration) || duration <= 0)
+        return vp->duration;
+    else
+        return duration;
 }
 
 SDL2Proxy::SDL2Proxy() {

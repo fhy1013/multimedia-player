@@ -29,7 +29,7 @@ int FrameQueue::init(int max_size, int keep_last) {
 
 void FrameQueue::destroy() {
     for (auto i = 0; i < max_size_; ++i) {
-        frameUnref(&queue_[i]);
+        av_frame_unref(queue_[i].frame);
         av_frame_free(&queue_[i].frame);
     }
 }
@@ -66,7 +66,7 @@ void FrameQueue::frameNext() {
         rindex_shown_ = 1;
         return;
     }
-    frameUnref(&queue_[rindex_]);
+    av_frame_unref(queue_[rindex_].frame);
     if (++rindex_ == max_size_) rindex_ = 0;
     std::unique_lock<std::mutex> lck(mtx_);
     --size_;
@@ -78,4 +78,10 @@ int64_t FrameQueue::lastPos() {
         return queue_[rindex_].pos;
     else
         return -1;
+}
+
+void FrameQueue::clear() {
+    while (frameRemaining() > 0) {
+        frameNext();
+    }
 }

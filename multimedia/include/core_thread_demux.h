@@ -14,4 +14,6 @@ public:
 
 private:
     void demux();
+
+    void seek();
 };

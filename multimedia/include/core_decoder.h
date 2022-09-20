@@ -24,6 +24,8 @@ public:
 
     AVFormatContext* formatContext() { return format_context_; }
 
+    bool avcodecFlushBuffer(AVPacket* pack);
+
 protected:
     int stream_index_;
     AVFormatContext* format_context_;

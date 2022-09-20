@@ -25,6 +25,10 @@ bool CoreDecoderAudio::init(AVFormatContext* format_context, int stream_index, A
 void CoreDecoderAudio::unInit() {}
 
 bool CoreDecoderAudio::decode(AVPacket* pack, DecodeCallback cb) {
+    if (avcodecFlushBuffer(pack)) {
+        return false;
+    }
+
     auto ret = avcodec_send_packet(codec_context_, pack);
     if (ret != 0 && ret != AVERROR(EAGAIN)) {
         LOG(ERROR) << "Error in avcodec_send_packet: " << err2str(ret);
