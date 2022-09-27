@@ -307,45 +307,57 @@ bool SDL2Video::refresh(VideoRefreshCallbacks cb) {
     }
 
     seek();
+    double time;
 
-    Frame *af = nullptr;
-    if (getFrame(&af)) {
-        auto delay = af->pts - last_pts_;
-        if (fabs(delay) > 1.0) {
-            // if (true) {
-            cb(1);
-            core_media_->videoFrameQueue()->frameNext();
-            return false;
-        }
-        if (delay <= 0 || delay >= 1.0) delay = last_delay_;
-        // auto delay = computeTargetDelay(delay, af);
-
-        auto diff = af->pts - core_media_->audioPts();
-        auto sync_threshold = FFMAX(AV_SYNC_THRESHOLD_MIN, FFMIN(AV_SYNC_THRESHOLD_MAX, delay));
-        if (!isnan(diff) && fabs(diff) < AV_NOSYNC_THRESHOLD) {
-            if (diff <= -sync_threshold)
-                delay = FFMAX(0, delay + diff);
-            else if (diff >= sync_threshold && delay > AV_SYNC_FRAMEDUP_THRESHOLD)
-                delay = delay + diff;
-            else if (diff >= sync_threshold)
-                delay = 2 * delay;
-        }
-        LOG(INFO) << "video refresh delay: " << delay * 1000 + 1;
-        cb(delay * 1000 + 1);
-
-        last_delay_ = delay;
-
-        if (diff <= 0.0) {
-            render(af);
-            last_pts_ = af->pts;
-            core_media_->videoFrameQueue()->frameNext();
-        } else {
-            LOG(INFO) << "video refresh delay: " << delay << ", diff: " << diff;
-        }
-    } else {
+retry:
+    if (core_media_->videoFrameQueue()->frameRemaining() == 0) {
         cb(1);
         return false;
     }
+
+    Frame *vp = nullptr;
+    Frame *last_vp = nullptr;
+    double last_duration, duration, delay;
+
+    last_vp = core_media_->videoFrameQueue()->peekLast();
+    vp = core_media_->videoFrameQueue()->peekCurrent();
+
+    last_duration = vpDuration(last_vp, vp);
+    delay = computeTargetDelay(last_duration, vp);
+
+    time = av_gettime_relative() / 1000000.0;
+
+    if (frame_timer_ + delay > time) {
+        auto remaining_time = frame_timer_ + delay - time;
+        cb(remaining_time * 1000);
+        return false;
+    }
+
+    frame_timer_ += delay;
+
+    if (delay > 0 && time - frame_timer_ > AV_SYNC_THRESHOLD_MAX) {
+        frame_timer_ = time;
+    }
+
+    if (!isnan(vp->pts)) {
+        core_media_->setVideoPts(vp->pts);
+    }
+
+    if (core_media_->videoFrameQueue()->frameRemaining() > 1) {
+        auto *next_vp = core_media_->videoFrameQueue()->peekNext();
+        duration = vpDuration(vp, next_vp);
+        if (time > frame_timer_ + duration) {
+            core_media_->videoFrameQueue()->frameNext();
+            goto retry;
+        }
+    }
+
+    core_media_->videoFrameQueue()->frameNext();
+
+display:
+    render(core_media_->videoFrameQueue()->peekLast());
+    cb(1);
+
     return true;
 }
 
@@ -375,6 +387,8 @@ bool SDL2Video::getFrame(Frame **frame) {
 }
 
 void SDL2Video::render(Frame *af) {
+    if (!af) return;
+
     LOG(INFO) << "video refresh pts " << af->pts << ", duration " << af->duration;
 
     auto height = SwscaleProxy::instance()->scaled((uint8_t const *const *)af->frame, af->frame->linesize, 0,
@@ -400,7 +414,7 @@ void SDL2Video::render(Frame *af) {
 double SDL2Video::computeTargetDelay(double delay, Frame *af) {
     /* if video is slave, we try to correct big delays by
        duplicating or deleting a frame */
-    auto diff = af->pts - core_media_->audioPts();
+    auto diff = core_media_->videoPts() - core_media_->audioPts();
     /* skip or repeat frame. We take into account the
        delay to compute the threshold. I still don't know
        if it is the best guess */

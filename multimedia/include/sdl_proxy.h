@@ -112,6 +112,7 @@ private:
     double next_cb_timer_;  // 下一次回调时间
     double last_pts_;       // 上一帧pts
     double last_delay_;     // 上一帧delay时间
+    double frame_timer_;    // 视频帧播放时间
 };
 
 class SDL2Proxy {
