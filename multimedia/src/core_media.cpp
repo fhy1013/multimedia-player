@@ -262,11 +262,12 @@ bool CoreMedia::initVideo() {
     if (video_stream_index_ >= 0)
         return video_->init(
             format_context_, video_stream_index_,
-            [this](VideoParams in) {
+            [this](VideoParams in) -> bool {
                 VideoParams out{1280, 720, in.format};
                 if (!SwscaleProxy::instance()->init(in, out)) return false;
-                sdl_proxy_->initVideo(out, this);
+                auto ret = sdl_proxy_->initVideo(out, this);
                 sdl_proxy_->scheduleRefreshVideo(1);
+                return ret;
             },
             videoFrameQueue());
     return true;
@@ -276,7 +277,7 @@ bool CoreMedia::initAudio() {
     if (audio_stream_index_ >= 0)
         return audio_->init(
             format_context_, audio_stream_index_,
-            [this](AudioParams in) {
+            [this](AudioParams in) -> bool {
                 AudioParams out{in.channel, AV_SAMPLE_FMT_S16, 48000};
                 if (!SwresampleProxy::instance()->init(in, out)) return false;
 
