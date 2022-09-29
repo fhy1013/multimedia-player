@@ -18,13 +18,13 @@ CoreMedia::CoreMedia()
       thread_demux_(nullptr),
       status_(STOP),
       sdl_proxy_(nullptr) {
-    LOG(INFO) << "CoreMedia() ";
+    // LOG(INFO) << "CoreMedia() ";
     init();
 }
 
 CoreMedia::~CoreMedia() {
     unInit();
-    LOG(INFO) << "~CoreMedia() ";
+    // LOG(INFO) << "~CoreMedia() ";
 }
 
 bool CoreMedia::init() {

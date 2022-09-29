@@ -1,11 +1,13 @@
 #include "core_decoder_video.h"
 #include "glog_proxy.h"
 
-CoreDecoderVideo::CoreDecoderVideo() { LOG(INFO) << "CoreDecoderVideo() "; }
+CoreDecoderVideo::CoreDecoderVideo() {
+    // LOG(INFO) << "CoreDecoderVideo() ";
+}
 
 CoreDecoderVideo::~CoreDecoderVideo() {
     unInit();
-    LOG(INFO) << "~CoreDecoderVideo() ";
+    // LOG(INFO) << "~CoreDecoderVideo() ";
 }
 
 bool CoreDecoderVideo::init(AVFormatContext *format_context, int stream_index, VideoCallback cb,

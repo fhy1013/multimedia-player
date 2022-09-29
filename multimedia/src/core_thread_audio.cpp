@@ -2,9 +2,13 @@
 #include "glog_proxy.h"
 #include "core_media.h"
 
-CoreThreadAudio::CoreThreadAudio(CoreMedia* core_media) : CoreThread(core_media) { LOG(INFO) << "CoreThreadAudio() "; }
+CoreThreadAudio::CoreThreadAudio(CoreMedia* core_media) : CoreThread(core_media) {
+    // LOG(INFO) << "CoreThreadAudio() ";
+}
 
-CoreThreadAudio::~CoreThreadAudio() { LOG(INFO) << "~CoreThreadAudio() "; }
+CoreThreadAudio::~CoreThreadAudio() {
+    //  LOG(INFO) << "~CoreThreadAudio() ";
+}
 
 bool CoreThreadAudio::start() {
     std::thread([&] { this->audioDecode(); }).detach();

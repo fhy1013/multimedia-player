@@ -2,9 +2,13 @@
 #include "glog_proxy.h"
 #include "core_media.h"
 
-CoreThreadDemux::CoreThreadDemux(CoreMedia* core_media) : CoreThread(core_media) { LOG(INFO) << "CoreThreadDemux() "; }
+CoreThreadDemux::CoreThreadDemux(CoreMedia* core_media) : CoreThread(core_media) {
+    // LOG(INFO) << "CoreThreadDemux() ";
+}
 
-CoreThreadDemux::~CoreThreadDemux() { LOG(INFO) << "~CoreThreadDemux() "; }
+CoreThreadDemux::~CoreThreadDemux() {
+    // LOG(INFO) << "~CoreThreadDemux() ";
+}
 
 bool CoreThreadDemux::start() {
     std::thread([&] { this->demux(); }).detach();

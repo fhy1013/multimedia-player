@@ -26,10 +26,12 @@ extern "C" {
 
 SDL2Audio::SDL2Audio()
     : audio_buf_(nullptr), audio_buf_size_(0), audio_buf_index_(0), audio_callback_time_(0), core_media_(nullptr) {
-    LOG(INFO) << "SDL2Audio() ";
+    // LOG(INFO) << "SDL2Audio() ";
 }
 
-SDL2Audio::~SDL2Audio() { LOG(INFO) << "~SDL2Audio() "; }
+SDL2Audio::~SDL2Audio() {
+    // LOG(INFO) << "~SDL2Audio() ";
+}
 
 SDL2Audio *SDL2Audio::instance() {
     static SDL2Audio self;
@@ -126,7 +128,7 @@ void SDL2Audio::refresh(void *udata, Uint8 *stream, int len) {
         update_audio_clock_ = false;
     }
 
-    LOG(INFO) << "audio refresh frames pts: " << core_media_->audioPts();
+    // LOG(INFO) << "audio refresh frames pts: " << core_media_->audioPts();
 }
 
 void SDL2Audio::setAudioVolume(const int audio_volume) {
@@ -256,13 +258,13 @@ SDL2Video::SDL2Video()
       rect_({0, 0, 0, 0}),
       core_media_(nullptr),
       frame_(nullptr) {
-    LOG(INFO) << "SDL2Video() ";
+    // LOG(INFO) << "SDL2Video() ";
     frame_ = av_frame_alloc();
 }
 
 SDL2Video::~SDL2Video() {
     if (!frame_) av_frame_free(&frame_);
-    LOG(INFO) << "~SDL2Video() ";
+    // LOG(INFO) << "~SDL2Video() ";
 }
 
 SDL2Video *SDL2Video::instance() {
@@ -389,7 +391,7 @@ bool SDL2Video::getFrame(Frame **frame) {
 void SDL2Video::render(Frame *af) {
     if (!af) return;
 
-    LOG(INFO) << "video refresh pts " << af->pts << ", duration " << af->duration;
+    // LOG(INFO) << "video refresh pts " << af->pts << ", duration " << af->duration;
 
     auto height = SwscaleProxy::instance()->scaled((uint8_t const *const *)af->frame, af->frame->linesize, 0,
                                                    af->height, frame_->data, frame_->linesize);
@@ -449,7 +451,7 @@ double SDL2Video::vpDuration(Frame *vp, Frame *next_vp) {
 }
 
 SDL2Proxy::SDL2Proxy() {
-    LOG(INFO) << "SDL2Proxy() ";
+    // LOG(INFO) << "SDL2Proxy() ";
     if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_TIMER)) {
         LOG(ERROR) << "failed SDL_Init";
         return;
@@ -459,7 +461,7 @@ SDL2Proxy::SDL2Proxy() {
 SDL2Proxy::~SDL2Proxy() {
     uninit();
     SDL_Quit();
-    LOG(INFO) << "~SDL2Proxy() ";
+    // LOG(INFO) << "~SDL2Proxy() ";
 }
 
 bool SDL2Proxy::initAudio(SDL_AudioSpec *spec, CoreMedia *core_media) {

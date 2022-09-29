@@ -2,13 +2,13 @@
 #include "glog_proxy.h"
 
 FrameQueue::FrameQueue() {
-    LOG(INFO) << "FrameQueue() ";
+    // LOG(INFO) << "FrameQueue() ";
     init();
 }
 
 FrameQueue::~FrameQueue() {
     destroy();
-    LOG(INFO) << "~FrameQueue() ";
+    // LOG(INFO) << "~FrameQueue() ";
 }
 
 int FrameQueue::init(int max_size, int keep_last) {

@@ -28,9 +28,11 @@ void SwscaleProxy::uninit() {
     }
 }
 
-SwscaleProxy::SwscaleProxy() : sws_context_(nullptr) { LOG(INFO) << "SwscaleProxy() "; }
+SwscaleProxy::SwscaleProxy() : sws_context_(nullptr) {
+    // LOG(INFO) << "SwscaleProxy() ";
+}
 
 SwscaleProxy::~SwscaleProxy() {
     uninit();
-    LOG(INFO) << "~SwscaleProxy() ";
+    // LOG(INFO) << "~SwscaleProxy() ";
 }

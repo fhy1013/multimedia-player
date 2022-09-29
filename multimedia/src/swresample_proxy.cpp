@@ -8,10 +8,12 @@ SwresampleProxy* SwresampleProxy::instance() {
 
 SwresampleProxy::SwresampleProxy()
     : swr_context_(nullptr), in_({0, AV_SAMPLE_FMT_NONE, 0}), out_({0, AV_SAMPLE_FMT_NONE, 0}) {
-    LOG(INFO) << "SwresampleProxy() ";
+    // LOG(INFO) << "SwresampleProxy() ";
 }
 
-SwresampleProxy::~SwresampleProxy() { LOG(INFO) << "~SwresampleProxy() "; }
+SwresampleProxy::~SwresampleProxy() {
+    //  LOG(INFO) << "~SwresampleProxy() ";
+}
 
 bool SwresampleProxy::init(const AudioParams& in, const AudioParams& out) {
     in_ = in;

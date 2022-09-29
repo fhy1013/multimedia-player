@@ -2,9 +2,13 @@
 #include "glog_proxy.h"
 #include "core_media.h"
 
-CoreThreadVideo::CoreThreadVideo(CoreMedia* core_media) : CoreThread(core_media) { LOG(INFO) << "CoreThreadVideo() "; }
+CoreThreadVideo::CoreThreadVideo(CoreMedia* core_media) : CoreThread(core_media) {
+    // LOG(INFO) << "CoreThreadVideo() ";
+}
 
-CoreThreadVideo::~CoreThreadVideo() { LOG(INFO) << "~CoreThreadVideo() "; }
+CoreThreadVideo::~CoreThreadVideo() {
+    //  LOG(INFO) << "~CoreThreadVideo() ";
+}
 
 bool CoreThreadVideo::start() {
     std::thread([&] { this->videoDecode(); }).detach();

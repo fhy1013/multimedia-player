@@ -5,9 +5,13 @@
 
 static const size_t g_max_size = 10;
 
-PacketQueue::PacketQueue() : max_size_(g_max_size) { LOG(INFO) << "PacketQueue() "; }
+PacketQueue::PacketQueue() : max_size_(g_max_size) {
+    // LOG(INFO) << "PacketQueue() ";
+}
 
-PacketQueue::~PacketQueue() { LOG(INFO) << "~PacketQueue() "; }
+PacketQueue::~PacketQueue() {
+    // LOG(INFO) << "~PacketQueue() ";
+}
 
 bool PacketQueue::empty() {
     std::lock_guard<SpinMutex> lck(mtx_);

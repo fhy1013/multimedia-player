@@ -1,11 +1,13 @@
 #include "core_decoder_audio.h"
 #include "glog_proxy.h"
 
-CoreDecoderAudio::CoreDecoderAudio() { LOG(INFO) << "CoreDecoderAudio() "; }
+CoreDecoderAudio::CoreDecoderAudio() {
+    // LOG(INFO) << "CoreDecoderAudio() ";
+}
 
 CoreDecoderAudio::~CoreDecoderAudio() {
     unInit();
-    LOG(INFO) << "~CoreDecoderAudio() ";
+    // LOG(INFO) << "~CoreDecoderAudio() ";
 }
 
 bool CoreDecoderAudio::init(AVFormatContext* format_context, int stream_index, AudioCallback cb,
