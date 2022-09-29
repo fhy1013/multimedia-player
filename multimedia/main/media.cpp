@@ -5,8 +5,11 @@
 int main(int argc, char **argv) {
     InitLog(argv[0]);
     LOG(INFO) << "L7Player init";
-    // std::string media_file = "../../resource/media/test.mp4";
     std::string media_file = "../../resource/media/nature.mkv";
+    if (argc >= 2) {
+        media_file = argv[1];
+    }
+
     {
         CoreMedia media;
         if (media.open(media_file) && media.start()) {
