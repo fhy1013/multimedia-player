@@ -39,35 +39,11 @@ public:
     std::shared_ptr<FrameQueue>& videoFrameQueue();
     std::shared_ptr<FrameQueue>& audioFrameQueue();
 
-    void initClock() {
-        video_clock_.pts = 0.0;
-        video_clock_.pts_drift = 0.0;
-        video_clock_.last_updated = 0.0;
-
-        audio_clock_.pts = 0.0;
-        audio_clock_.pts_drift = 0.0;
-        audio_clock_.last_updated = 0.0;
-    }
-    void setVideoPts(const double pts) {
-        double now_time = av_gettime_relative() / 1000000.0;
-        video_clock_.pts = pts;
-        video_clock_.pts_drift = pts - now_time;
-        video_clock_.last_updated = now_time;
-    }
-    double videoPts() const {
-        double now_time = av_gettime_relative() / 1000000.0;
-        return video_clock_.pts_drift + now_time;
-    }
-    void setAudioPts(const double pts) {
-        double now_time = av_gettime_relative() / 1000000.0;
-        audio_clock_.pts = pts;
-        audio_clock_.pts_drift = pts - now_time;
-        audio_clock_.last_updated = now_time;
-    }
-    double audioPts() const {
-        double now_time = av_gettime_relative() / 1000000.0;
-        return audio_clock_.pts_drift + now_time;
-    }
+    void initClock();
+    void setVideoPts(const double pts);
+    double videoPts() const;
+    void setAudioPts(const double pts);
+    double audioPts() const;
 
     void initSeek(int seek_flags = AVSEEK_FLAG_BACKWARD);
     void seek(double timestamp);

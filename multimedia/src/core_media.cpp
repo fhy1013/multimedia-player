@@ -250,6 +250,40 @@ void CoreMedia::loop() {
 std::shared_ptr<FrameQueue>& CoreMedia::videoFrameQueue() { return video_frame_queue_; }
 std::shared_ptr<FrameQueue>& CoreMedia::audioFrameQueue() { return audio_frame_queue_; }
 
+void CoreMedia::initClock() {
+    video_clock_.pts = 0.0;
+    video_clock_.pts_drift = 0.0;
+    video_clock_.last_updated = 0.0;
+
+    audio_clock_.pts = 0.0;
+    audio_clock_.pts_drift = 0.0;
+    audio_clock_.last_updated = 0.0;
+}
+
+void CoreMedia::setVideoPts(const double pts) {
+    double now_time = av_gettime_relative() / 1000000.0;
+    video_clock_.pts = pts;
+    video_clock_.pts_drift = pts - now_time;
+    video_clock_.last_updated = now_time;
+}
+
+double CoreMedia::videoPts() const {
+    double now_time = av_gettime_relative() / 1000000.0;
+    return video_clock_.pts_drift + now_time;
+}
+
+void CoreMedia::setAudioPts(const double pts) {
+    double now_time = av_gettime_relative() / 1000000.0;
+    audio_clock_.pts = pts;
+    audio_clock_.pts_drift = pts - now_time;
+    audio_clock_.last_updated = now_time;
+}
+
+double CoreMedia::audioPts() const {
+    double now_time = av_gettime_relative() / 1000000.0;
+    return audio_clock_.pts_drift + now_time;
+}
+
 void CoreMedia::initSeek(int seek_flags) {
     seek_.seek_req = false;
     seek_.seek_flags = seek_flags;
