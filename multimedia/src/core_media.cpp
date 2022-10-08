@@ -5,7 +5,7 @@
 #include <functional>
 
 CoreMedia::CoreMedia()
-    : media_(""),
+    : media_url_(""),
       format_context_(nullptr),
       video_(nullptr),
       audio_(nullptr),
@@ -17,6 +17,7 @@ CoreMedia::CoreMedia()
       thread_audio_(nullptr),
       thread_demux_(nullptr),
       status_(STOP),
+      av_dictionary_ptr_(nullptr),
       sdl_proxy_(nullptr) {
     // LOG(INFO) << "CoreMedia() ";
     init();
@@ -33,6 +34,8 @@ bool CoreMedia::init() {
         LOG(ERROR) << "allocate memory for format context error";
         return false;
     }
+
+    avformat_network_init();
 
     video_stream_index_ = -1;
     audio_stream_index_ = -1;
@@ -67,6 +70,9 @@ bool CoreMedia::init() {
                            std::placeholders::_3);
 
     status_ = STOP;
+
+    av_dictionary_ptr_ = std::make_shared<AVDictionaryCfg>();
+
     sdl_proxy_ = std::make_shared<SDL2Proxy>();
 
     audio_frame_queue_ = std::make_shared<FrameQueue>();
@@ -140,9 +146,10 @@ bool CoreMedia::pause() {
 }
 
 bool CoreMedia::open(const std::string& media) {
-    media_ = media;
-    if (avformat_open_input(&format_context_, media_.c_str(), NULL, NULL) != 0) {
-        LOG(ERROR) << "ERROR could not open the file " << media_;
+    media_url_ = media;
+    av_dictionary_ptr_->configAVDictionary();
+    if (avformat_open_input(&format_context_, media_url_.c_str(), NULL, (av_dictionary_ptr_->options())) != 0) {
+        LOG(ERROR) << "ERROR could not open the file " << media_url_;
         return false;
     }
 
@@ -150,7 +157,7 @@ bool CoreMedia::open(const std::string& media) {
         LOG(ERROR) << "ERROR could not get the stream info";
         return false;
     }
-    // av_dump_format(format_context_, 0, media_.c_str(), 0);
+    // av_dump_format(format_context_, 0, media_url_.c_str(), 0);
 
     video_stream_index_ = av_find_best_stream(format_context_, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
     audio_stream_index_ = av_find_best_stream(format_context_, AVMEDIA_TYPE_AUDIO, -1, -1, nullptr, 0);

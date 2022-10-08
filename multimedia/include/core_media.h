@@ -9,6 +9,7 @@
 #include "core_frame_queue.h"
 #include "clock.h"
 #include "seek.h"
+#include "av_dictionary.hpp"
 
 #include <memory>
 #include <functional>
@@ -82,7 +83,7 @@ public:
     StatusCallback status_cb_;
 
 private:
-    std::string media_;
+    std::string media_url_;
     AVFormatContext* format_context_;
 
     CoreDecoderVideo* video_;
@@ -106,6 +107,8 @@ private:
     Clock audio_clock_;
 
     Seek seek_;
+
+    std::shared_ptr<AVDictionaryCfg> av_dictionary_ptr_;
 
 public:
     std::shared_ptr<SDL2Proxy> sdl_proxy_;
